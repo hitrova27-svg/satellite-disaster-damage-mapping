@@ -194,11 +194,10 @@ def build_xbd_manifest(source_dirs=None, out_dir=None, val_frac=0.15, limit_tile
                          "split": "test" if dtype == config.HELDOUT_DISASTER else "train"})
 
     df = pd.DataFrame(rows)
-    # carve a stratified val set out of train
-    rng = np.random.default_rng(config.SEED)
-    is_train = df["split"] == "train"
-    val_idx = (df[is_train].groupby("label", group_keys=False)
-               .apply(lambda g: g.sample(frac=val_frac, random_state=config.SEED)).index)
+    # carve a stratified val set out of train (sample per class so val keeps the class mix)
+    train_part = df[df["split"] == "train"]
+    val_idx = (train_part.groupby("label", group_keys=False)
+               .sample(frac=val_frac, random_state=config.SEED).index)
     df.loc[val_idx, "split"] = "val"
     df.to_csv(out / "manifest.csv", index=False)
     print(f"Built manifest: {len(df)} patches ->", out / "manifest.csv")
