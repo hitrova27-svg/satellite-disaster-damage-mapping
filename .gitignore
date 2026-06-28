@@ -4,3 +4,5 @@ data/raw/
 data/processed/
 checkpoints/
 .ipynb_checkpoints/
+
+data/
