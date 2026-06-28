@@ -1,6 +1,6 @@
 # 📖 READ EVERYBODY — start here!
 
-Hey team 👋 (Bhuvanesh · Artur · Anastasiia · Yitian) — this is the one-page map of our
+Hey team 👋 (Bhuvanesh ·  · Anastasiia · Yitian) — this is the one-page map of our
 project. Read it before touching any notebook. It takes 3 minutes.
 
 ---
