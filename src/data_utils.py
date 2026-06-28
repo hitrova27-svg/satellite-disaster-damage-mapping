@@ -117,28 +117,51 @@ def _crop(img, bbox, pad=10, size=None):
     return img.crop((minx - pad, miny - pad, maxx + pad, maxy + pad)).resize((size, size))
 
 
-def build_xbd_manifest(raw_dir=None, out_dir=None, val_frac=0.15, limit_tiles=None):
-    """Turn raw xBD tiles into patches + data/processed/manifest.csv.
+def find_xbd_sources(data_dir=None):
+    """Auto-discover xView2 source roots. Returns dirs that contain labels/ + images/.
 
-    Expects:  data/raw/xbd/images/*.png  and  data/raw/xbd/labels/*post_disaster.json
-    Produces: data/processed/patches/*.png  +  manifest.csv (pre_path, post_path,
-              label, disaster_type, split). Held-out disaster -> 'test'.
+    Works with the official layout (data/train, data/test) and a flat data/raw/xbd.
+    """
+    base = Path(data_dir or config.DATA_DIR)
+    candidates = [base / "train", base / "test", base / "tier3", base / "raw" / "xbd"]
+    return [c for c in candidates if (c / "labels").is_dir() and (c / "images").is_dir()]
+
+
+def build_xbd_manifest(source_dirs=None, out_dir=None, val_frac=0.15, limit_tiles=None):
+    """Turn xView2 tiles into building patches + data/processed/manifest.csv.
+
+    Scans the official layout: data/train/{images,labels}/, data/test/..., data/tier3/...
+    (each label is *_post_disaster.json with matching *_pre/post_disaster.png images).
+    Produces data/processed/patches/*.png + manifest.csv with columns
+    (pre_path, post_path, label, disaster_type, split). We re-split BY DISASTER TYPE:
+    the held-out disaster -> 'test', everything else -> 'train' (a 'val' slice is carved out).
     """
     if pd is None:
         raise ImportError("pandas is required: pip install pandas")
-    raw = Path(raw_dir or Path(config.DATA_DIR) / "raw" / "xbd")
     out = Path(out_dir or Path(config.DATA_DIR) / "processed")
     (out / "patches").mkdir(parents=True, exist_ok=True)
-    label_files = sorted((raw / "labels").glob("*post_disaster.json"))
+    roots = source_dirs or find_xbd_sources()
+    if not roots:
+        raise FileNotFoundError(
+            "No xView2 data found. Expected data/train/{images,labels} (extract the .tar first)."
+        )
+    # collect (post_label_json, its images/ dir) across all source roots
+    label_files = []
+    for root in map(Path, roots):
+        for jp in sorted((root / "labels").glob("*post_disaster.json")):
+            label_files.append((jp, root / "images"))
     if limit_tiles:
+        # shuffle first so a small subset still covers ALL disaster types (incl. held-out)
+        rng_pick = np.random.default_rng(config.SEED)
+        rng_pick.shuffle(label_files)
         label_files = label_files[:limit_tiles]
 
     rows = []
-    for jp in label_files:
+    for jp, images_dir in label_files:
         event = jp.stem.split("_")[0]                       # e.g. 'hurricane-florence'
         dtype = config.event_to_disaster_type(event)
-        post_png = raw / "images" / (jp.stem + ".png")
-        pre_png = raw / "images" / (jp.stem.replace("post", "pre") + ".png")
+        post_png = images_dir / (jp.stem + ".png")
+        pre_png = images_dir / (jp.stem.replace("post", "pre") + ".png")
         if not post_png.exists() or not pre_png.exists():
             continue
         pre_img = Image.open(pre_png).convert("RGB")
