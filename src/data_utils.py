@@ -105,10 +105,18 @@ def make_synthetic_datasets(n_train=900, n_val=200, n_test=300, seed=None):
 # ===========================================================================
 # REAL xBD DATA  — parse downloaded tiles into building patches + a manifest
 # ===========================================================================
+import re
+_WKT_NUM = re.compile(r"-?\d+\.?\d*")
+
+
 def _bbox(wkt_str):
-    from shapely import wkt as shapely_wkt   # pip install shapely
-    minx, miny, maxx, maxy = shapely_wkt.loads(wkt_str).bounds
-    return int(minx), int(miny), int(maxx), int(maxy)
+    """Bounding box from a WKT polygon, e.g. 'POLYGON ((x1 y1, x2 y2, ...))'.
+
+    Parsed directly (no shapely dependency): numbers alternate x, y.
+    """
+    nums = [float(v) for v in _WKT_NUM.findall(wkt_str)]
+    xs, ys = nums[0::2], nums[1::2]
+    return int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))
 
 
 def _crop(img, bbox, pad=10, size=None):
@@ -147,9 +155,11 @@ def build_xbd_manifest(source_dirs=None, out_dir=None, val_frac=0.15, limit_tile
         )
     # collect (post_label_json, its images/ dir) across all source roots
     label_files = []
+    keep = set(config.TRAIN_DISASTERS) | {config.HELDOUT_DISASTER}   # ignore other disaster types
     for root in map(Path, roots):
         for jp in sorted((root / "labels").glob("*post_disaster.json")):
-            label_files.append((jp, root / "images"))
+            if config.event_to_disaster_type(jp.stem.split("_")[0]) in keep:
+                label_files.append((jp, root / "images"))
     if limit_tiles:
         # shuffle first so a small subset still covers ALL disaster types (incl. held-out)
         rng_pick = np.random.default_rng(config.SEED)
