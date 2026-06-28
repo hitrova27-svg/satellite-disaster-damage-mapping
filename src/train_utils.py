@@ -1,12 +1,14 @@
-"""Shared training loop + metrics, used by notebooks 03 and 04."""
+"""Shared training loop + metrics (numpy only, no sklearn needed)."""
 from pathlib import Path
+import numpy as np
 import torch
 import torch.nn as nn
 
 
-def train_model(model, train_dl, val_dl, device, epochs=20, lr=1e-3,
-                class_weights=None, ckpt_path=None):
+def train_model(model, train_dl, val_dl, device, epochs=5, lr=1e-3,
+                class_weights=None, ckpt_path=None, verbose=True):
     """Generic train loop for the (pre, post, label) siamese models."""
+    model = model.to(device)
     opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     w = class_weights.to(device) if class_weights is not None else None
     crit = nn.CrossEntropyLoss(weight=w)
@@ -23,8 +25,9 @@ def train_model(model, train_dl, val_dl, device, epochs=20, lr=1e-3,
         vl, vacc = _validate(model, val_dl, device, crit)
         history["train_loss"].append(tl / len(train_dl.dataset))
         history["val_loss"].append(vl); history["val_acc"].append(vacc)
-        print(f"epoch {ep+1:02d}  train_loss {history['train_loss'][-1]:.3f}"
-              f"  val_loss {vl:.3f}  val_acc {vacc:.3f}")
+        if verbose:
+            print(f"  epoch {ep+1:02d}/{epochs}  train_loss {history['train_loss'][-1]:.3f}"
+                  f"  val_loss {vl:.3f}  val_acc {vacc:.2f}")
         if ckpt_path and vacc > best:
             best = vacc
             Path(ckpt_path).parent.mkdir(parents=True, exist_ok=True)
@@ -44,16 +47,28 @@ def _validate(model, dl, device, crit):
 
 
 @torch.no_grad()
-def evaluate(model, dl, device, class_names=None):
-    """Print accuracy, per-class precision/recall/F1 and a confusion matrix."""
-    from sklearn.metrics import classification_report, confusion_matrix
-    model.eval(); ys = []; ps = []
+def predict(model, dl, device):
+    """Run the model over a loader -> (y_true, y_pred) numpy arrays."""
+    model.eval(); ys, ps = [], []
     for pre, post, y in dl:
         out = model(pre.to(device), post.to(device))
-        ys.extend(y.tolist()); ps.extend(out.argmax(1).cpu().tolist())
-    print(classification_report(ys, ps, target_names=class_names, zero_division=0))
-    print("confusion matrix:\n", confusion_matrix(ys, ps))
-    return ys, ps
+        ys += y.tolist(); ps += out.argmax(1).cpu().tolist()
+    return np.array(ys), np.array(ps)
+
+
+def scores(y_true, y_pred, n_classes=4):
+    """Return (confusion_matrix, accuracy, macro_f1, per_class_f1)."""
+    cm = np.zeros((n_classes, n_classes), int)
+    for t, p in zip(y_true, y_pred):
+        cm[t, p] += 1
+    acc = np.trace(cm) / max(cm.sum(), 1)
+    f1s = []
+    for c in range(n_classes):
+        tp = cm[c, c]
+        prec = tp / max(cm[:, c].sum(), 1)
+        rec = tp / max(cm[c, :].sum(), 1)
+        f1s.append(2 * prec * rec / max(prec + rec, 1e-9))
+    return cm, acc, float(np.mean(f1s)), f1s
 
 
 def plot_history(history):
@@ -63,3 +78,18 @@ def plot_history(history):
     ax[0].set_title("loss"); ax[0].legend()
     ax[1].plot(history["val_acc"]); ax[1].set_title("val accuracy")
     plt.tight_layout(); plt.show()
+
+
+def plot_confusion(cm, class_names, ax=None, title=""):
+    import matplotlib.pyplot as plt
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4.5, 4))
+    ax.imshow(cm, cmap="Blues")
+    ax.set_xticks(range(len(class_names))); ax.set_xticklabels(class_names, rotation=45, ha="right")
+    ax.set_yticks(range(len(class_names))); ax.set_yticklabels(class_names)
+    ax.set_xlabel("predicted"); ax.set_ylabel("true"); ax.set_title(title)
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, cm[i, j], ha="center", va="center",
+                    color="white" if cm[i, j] > cm.max() / 2 else "black")
+    return ax
