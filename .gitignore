@@ -4,5 +4,6 @@ data/raw/
 data/processed/
 checkpoints/
 .ipynb_checkpoints/
+work/          # local run scratch (Kaggle uses /kaggle/working)
 
 data/
