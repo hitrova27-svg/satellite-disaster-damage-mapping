@@ -1,0 +1,739 @@
+% =====================================================================
+%  Mapping Natural-Disaster Damage from Satellite Imagery
+%  Draft report -- Part 1 (data) and the pretrained change-detection model
+% =====================================================================
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=1.9cm,columnsep=0.75cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------------------------------------------- style
+\definecolor{accent}{HTML}{1F4E79}
+\definecolor{accentbg}{HTML}{EAF0F7}
+\definecolor{warnbg}{HTML}{FDF1E3}
+\definecolor{rulegray}{HTML}{999999}
+
+\captionsetup{font=small,labelfont={bf,color=accent},skip=5pt}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{2em}
+
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.7}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{5}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\footnotesize\color{accent}Mapping Natural-Disaster Damage from Satellite Imagery}
+\fancyhead[R]{\footnotesize\color{accent}\thepage}
+
+% coloured callout box, built from xcolor only (no extra packages needed)
+\newcommand{\keybox}[2]{%
+  \begin{center}
+  \setlength{\fboxsep}{9pt}%
+  \colorbox{#1}{\begin{minipage}{0.90\columnwidth}\small #2\end{minipage}}%
+  \end{center}}
+
+\newcommand{\wkeybox}[2]{%
+  \begin{center}
+  \setlength{\fboxsep}{9pt}%
+  \colorbox{#1}{\begin{minipage}{0.965\textwidth}\small #2\end{minipage}}%
+  \end{center}}
+
+\newcommand{\class}[1]{\textsf{\small #1}}
+
+% =====================================================================
+\begin{document}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\begin{center}
+
+{\LARGE\bfseries Mapping Natural-Disaster Damage from Satellite Imagery\par}
+\vspace{4pt}
+{\large Cross-disaster transfer of a pretrained change-detection CNN on xBD\par}
+
+\vspace{10pt}
+{\normalsize
+Artur Zavistovskyi \quad\textbullet\quad Bhuvanesh Dinesh Wadhwani \quad\textbullet\quad
+Anastasiia Khitrova \quad\textbullet\quad Yitian Zhou\par}
+\vspace{3pt}
+{\footnotesize Deep Learning Final Project\par}
+
+\vspace{12pt}
+\end{center}
+
+\wkeybox{accentbg}{
+\textbf{Abstract.} We assess per-building damage from paired pre- and post-disaster satellite
+imagery on the xBD dataset, and measure whether a model trained on one family of disasters
+transfers to a family it has never seen. A siamese CNN built on an ImageNet-pretrained ResNet-18
+is trained on 14 non-fire events and evaluated both in-distribution and zero-shot on five wildfire
+events held out entirely. In-distribution the model reaches \textbf{0.775 accuracy / 0.637
+macro-F1}; on unseen wildfire it drops to \textbf{0.636 / 0.396}, a 37.9\,\% relative loss in
+macro-F1. The per-class breakdown shows this headline number is misleading. \class{destroyed}
+scores \emph{higher} out of domain than in it (F1 0.754 vs.\ 0.631) and \class{no-damage} precision
+reaches 0.977; the collapse is confined to the two intermediate classes, which make up 19.1\,\% of
+training patches but only 1.7\,\% of wildfire patches. Together with a strongly asymmetric error
+direction (85.6\,\% of out-of-domain errors over-estimate severity) and a threshold-free ROC-AUC
+that holds at 0.797, the evidence indicates that the learned features transfer while the decision
+calibration does not. We also report a negative result on the team's data-quality question: xBD
+carries no occlusion label, and a four-statistic diagnostic finds the worst-occluded tiles are
+cloud over tsunami and volcano scenes rather than smoke over wildfire.
+\vspace{4pt}
+
+\textbf{Scope of this draft.} This report covers Part~1 (data collection, cleaning and preliminary
+analysis) and the \emph{pretrained} half of Part~2. The from-scratch CNN baseline and Part~3
+(impact and recovery analysis) are in progress and are not reported here. All numbers below come
+from a single reproducible run; nothing is projected or estimated.
+}
+\vspace{10pt}
+\end{@twocolumnfalse}
+]
+
+% =====================================================================
+\section{Introduction}
+
+Rapid damage maps after a natural disaster are useful only if they can be produced \emph{before}
+labelled data for that disaster exists. That makes the operational question sharper than ordinary
+image classification: not ``how accurate is the model'' but ``how accurate is it on a disaster type
+it has never seen''.
+
+We study this on xBD~\cite{xbd}, which pairs pre- and post-event high-resolution satellite tiles
+with building footprints and a four-level damage scale. The task is framed as \emph{change
+detection at building level}: given two co-registered crops of the same structure, one before and
+one after the event, predict \class{no-damage}, \class{minor-damage}, \class{major-damage} or
+\class{destroyed}.
+
+The experiment deliberately avoids a random split. Five wildfire events are removed from training
+entirely and used as a zero-shot test set, while the official xView2 evaluation directories provide
+an in-distribution reference measured on the same trained model. The \emph{gap} between those two
+numbers is the result; neither is informative alone.
+
+\section{Data}
+
+\subsection{Source and access}
+
+We use the full xBD release: 11{,}034 scenes over 19 events, each scene contributing a
+$1024\times1024$ RGB pre-disaster tile, the matching post-disaster tile, and a GeoJSON label file.
+That is 22{,}068 images and \textbf{425{,}368} annotated building polygons on the post-disaster
+side. Imagery was obtained through a public mirror of the xView2 challenge
+release\footnote{Kaggle dataset \texttt{qianlanzz/xbd-dataset}, layout
+\texttt{xbd/\{hold,test,tier1,tier3\}/\{images,labels,masks\}}.}.
+
+Two properties of the source matter and were verified rather than assumed:
+
+\begin{itemize}[leftmargin=*,itemsep=2pt,topsep=3pt]
+\item \textbf{The tiles are already co-registered.} Pixel $(x,y)$ is the same ground location in
+the pre- and post-disaster image, which is what makes cropping the \emph{same} bounding box from
+both valid. Without it the siamese design would be comparing different places.
+\item \textbf{The format is uniform.} All 800 files in a stratified quality-control sample are
+$1024\times1024$ RGB PNG with no read errors, so no resolution standardisation or band alignment is
+required.
+\end{itemize}
+
+Damage labels live only in the post-disaster GeoJSON, under \texttt{features.xy[].properties.subtype}.
+The same file also carries \texttt{features.lng\_lat}, giving per-building WGS84 coordinates
+directly --- which means the geo-referencing needed for Part~3 is already present and no separate
+geotransform file is required.
+
+\subsection{Split design}
+
+The split is scene-level and was produced by a dedicated indexing script rather than inside the
+training notebook, so that every model in the project trains on an identical partition. Assignment
+rules and resulting sizes are given in Table~\ref{tab:splits}.
+
+Two design points are worth defending. First, \texttt{test\_id} is drawn from the official
+\texttt{test} and \texttt{hold} directories, which were never part of any training pool and, unlike
+\texttt{val}, were never used for tuning --- this makes them an honest reference for the headline
+number. Second, assignment happens at \emph{scene} level, which is what guarantees that the pre-
+and post-disaster image of a location cannot separate and that no building can appear in two
+splits.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Split design and sizes. Only \texttt{train}/\texttt{val} depend on the random seed; both
+test sets are defined by the data itself.}
+\label{tab:splits}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+\textbf{Split} & \textbf{Rule} & \textbf{Scenes} & \textbf{Polygons} \\
+\midrule
+\texttt{train}    & tier1+tier3, non-fire  & 3{,}135 & 225{,}506 \\
+\texttt{val}      & tier1+tier3, non-fire  &   392 &  30{,}794 \\
+\texttt{test\_id} & test+hold, non-fire    & 1{,}135 &  91{,}755 \\
+\texttt{test\_ood}& all wildfire scenes    & 6{,}372 &  77{,}313 \\
+\midrule
+\multicolumn{2}{@{}l}{Total}               & 11{,}034 & 425{,}368 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The five held-out events are \texttt{pinery-bushfire}, \texttt{portugal-wildfire},
+\texttt{santa-rosa-wildfire}, \texttt{socal-fire} and \texttt{woolsey-fire}. An automated check
+confirms zero wildfire scenes in \texttt{train} or \texttt{val} and zero event overlap between the
+training pool and \texttt{test\_ood}.
+
+% =====================================================================
+\section{Exploratory analysis}
+
+\subsection{Class imbalance is severe and split-dependent}
+
+\class{no-damage} accounts for 72.0\,\% of training polygons and the rarest class is
+$11.6\times$ smaller (Fig.~\ref{fig:classdist}). More importantly the composition is not stable
+across splits: \texttt{test\_ood} is 80.2 / 0.9 / 0.9 / 14.7\,\% against 72.0 / 9.7 / 8.4 /
+6.2\,\% in \texttt{train}.
+
+This has direct methodological consequences. Plain accuracy is close to useless --- always
+predicting \class{no-damage} scores 0.72 on the training distribution while producing a damage map
+that never flags damage. We therefore report macro-F1 and per-class recall as the decision metrics,
+use inverse-frequency class weights computed on \texttt{train} only ($0.33 / 2.38 / 2.91 / 4.92$),
+and key checkpointing and early stopping on validation macro-F1 rather than accuracy.
+
+Class weighting was preferred to resampling: oversampling would repeat the same few destroyed
+buildings many times per epoch and invite memorisation, while undersampling would discard most of
+the majority signal. Weighting keeps every sample once per epoch and alters only its gradient
+contribution.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/class_dist_split.png}
+\caption{Damage-class distribution per split. Left: counts on a log scale. Right: composition in
+per cent. The \texttt{test\_ood} bar is qualitatively different from the other three --- the
+intermediate classes almost vanish and \class{destroyed} more than doubles.}
+\label{fig:classdist}
+\end{figure*}
+
+\subsection{Wildfire damage is bimodal}
+
+Averaged over events, the non-fire domain is 70.2 / 9.9 / 7.2 / 6.5\,\% across the four classes
+while the wildfire domain is 78.8 / \textbf{1.2} / \textbf{1.1} / \textbf{14.8}\,\%. Fire either
+leaves a building intact or destroys it; intermediate states barely occur. Figure~\ref{fig:heatmap}
+shows this per event and also how much the non-fire events differ among themselves ---
+\texttt{mexico-earthquake} is 99\,\% undamaged, \texttt{hurricane-matthew} is 51\,\%
+\class{minor-damage}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/class_dist_event.png}
+\caption{Damage-class composition per event. Held-out wildfire events in red. The fire rows share a
+signature that no non-fire event reproduces: near-zero \class{minor}/\class{major} with elevated
+\class{destroyed}.}
+\label{fig:heatmap}
+\end{figure}
+
+This is the project's central hypothesis made measurable. A model that implicitly learns the
+hurricane prior will be miscalibrated on fire \emph{even if its visual features transfer perfectly}.
+It also tells us what to look for in the out-of-domain confusion matrix: a pure prior shift produces
+errors with a consistent direction, whereas failed features produce diffuse errors.
+
+\subsection{Scene occupancy}
+
+Empty scenes are common and strongly event-dependent (Fig.~\ref{fig:occupancy}): 9.8\,\% of
+training scenes contain no buildings at all, against \textbf{54.1\,\%} of wildfire scenes, whose
+median building count is zero. The tier3 fire events cover large stretches of forest and scrubland.
+
+An empty scene yields no samples but still costs a full $1024\times1024$ decode. Sampling wildfire
+scenes uniformly would therefore have spent most of the extraction budget on empty forest. We
+instead sample only scenes with at least five usable buildings. This is a \emph{sampling} decision,
+not a cleaning one: nothing is deleted, and the identical rule is applied to all four splits so it
+cannot tilt the comparison.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/buildings_per_scene.png}
+\caption{Left: distribution of building count per scene by split. Right: share of scenes with zero
+buildings, per event (wildfire in red). More than half of all wildfire scenes are empty.}
+\label{fig:occupancy}
+\end{figure*}
+
+\subsection{Footprint geometry sets the patch size}
+
+Buildings are small in absolute pixels: median longest bounding-box side 35\,px, 90th percentile
+64\,px, with a thin tail to 349\,px at the 99th (Fig.~\ref{fig:bbox}). A $64\times64$ patch
+therefore covers roughly 90\,\% of footprints at close to native resolution. Going larger mostly
+upsamples empty ground at quadratic cost; going smaller destroys the roof texture that separates
+\class{minor} from \class{major} damage.
+
+We keep a 10\,px margin around each footprint. Damage is frequently more visible \emph{around} a
+building than on it --- debris fields, scorch marks, standing water --- but the margin is kept
+modest deliberately, for reasons that Section~\ref{sec:discussion} makes concrete.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/bbox_geometry.png}
+\caption{Building footprint geometry. Left: bounding-box side lengths against the usable patch
+area. Centre: aspect ratio. Right: footprint area by damage class. The dashed line marks the
+$64-2\times10$ px usable window.}
+\label{fig:bbox}
+\end{figure*}
+
+\subsection{A confound in the acquisition geometry}
+
+Ground sample distance and off-nadir angle are similar across the two domains, but sun elevation is
+not: $64.4\pm7.5$ degrees for non-fire against $55.0\pm15.9$ for wildfire, with a fire mode near
+$35^\circ$ that has no counterpart in training (Fig.~\ref{fig:meta}). Low sun means long shadows and
+a materially different appearance for the same structure.
+
+\keybox{warnbg}{\textbf{Honest caveat.} The histograms are spiky because every scene within an event
+shares one acquisition. Statistically this is \textbf{19 points, not 11{,}034}, and the geometry is
+fully confounded with event identity --- ``wildfire'' and ``the captures that happen to be wildfire''
+cannot be separated on this data. Part of the transfer gap we report may be shadow length rather
+than fire damage, and we cannot bound how much.}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/capture_metadata.png}
+\caption{Capture metadata, non-fire (blue) against wildfire (red). GSD and off-nadir angle overlap;
+sun elevation does not.}
+\label{fig:meta}
+\end{figure*}
+
+\subsection{What the classes look like}
+
+Figure~\ref{fig:examples} contrasts the two domains directly. In the non-fire domain the
+post-disaster image usually retains the structure with altered geometry --- torn roofs, debris,
+standing water. Wildfire damage instead collapses a building to a uniform grey scar with the
+footprint faintly visible, while \emph{undamaged} buildings often sit in surroundings that changed
+completely (scorched vegetation) with the roof untouched.
+
+That last observation generates a falsifiable prediction, made before any model was trained: a
+change-detection model learns ``the scene changed'' $\Rightarrow$ ``the building is damaged'', so
+under wildfire it should over-flag \class{no-damage}. Section~\ref{sec:results} reports the outcome.
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}{0.48\textwidth}
+\includegraphics[width=\textwidth]{figures/examples_train.png}
+\caption{Training domain (non-fire).}
+\end{subfigure}\hfill
+\begin{subfigure}{0.48\textwidth}
+\includegraphics[width=\textwidth]{figures/examples_ood.png}
+\caption{Held-out domain (wildfire).}
+\end{subfigure}
+\caption{Representative building patches, one row per damage class. Each cell shows the
+pre-disaster crop on the left and the post-disaster crop on the right.}
+\label{fig:examples}
+\end{figure*}
+
+% =====================================================================
+\section{Data cleaning}
+
+Our operating principle is that nothing is removed silently. Every rule states its threshold, its
+cost, and its per-split removal rate, so that a rule which quietly favours one split can be caught.
+Table~\ref{tab:cleaning} is the full ledger.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Cleaning ledger. Removal is reported against the scope each rule operates on.}
+\label{tab:cleaning}
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Rule} & \textbf{Scope} & \textbf{Removed} \\
+\midrule
+Missing / unpaired files & 11{,}034 scenes     & 0 \\
+Corrupted images         & 800 sampled images  & 0 \\
+Unreadable labels        & 11{,}034 scenes     & 0 \\
+Smoke / cloud occlusion  & 683 scenes          & 0 (flagged) \\
+\class{un-classified} subtype & 425{,}368 polygons & 14{,}011 \\
+Degenerate polygons      & 425{,}368 polygons  & 0 \\
+Footprint side $<8$\,px  & 411{,}357 polygons  & 14{,}458 \\
+Near-duplicates          & 400 sampled scenes  & 0 (no leak) \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Usable after cleaning}} & \textbf{396{,}899} \\
+\multicolumn{2}{@{}l}{} & \textbf{(93.3\,\%)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two rules that actually cost data are the \class{un-classified} subtype (3.29\,\%) and
+sub-8-pixel footprints (3.51\,\%). Both matter for fairness, so both were checked per split. The
+\class{un-classified} rate is 3.67 / 4.08 / 2.09 / 3.30\,\% across train / val / test\_id /
+test\_ood, and the tiny-footprint removal rate is 3.77 / 3.30 / 2.99 / 3.49\,\%. Neither is
+concentrated in \texttt{test\_ood}, so neither flatters the transfer result.
+
+\subsection{The occlusion question: a negative result}
+
+The team's open data-quality question was whether images fully obscured by smoke should be removed.
+\textbf{xBD carries no occlusion label} --- the metadata block contains only capture geometry. The
+closest available proxy is the \class{un-classified} subtype, which annotators used when a building
+could not be assessed.
+
+We ranked scenes by that proxy and tested it against four whole-tile image statistics chosen because
+smoke and thin cloud on 3-band optical imagery are bright, low-contrast, low-saturation and
+edge-poor. The measured Spearman correlations are given in Table~\ref{tab:occ} and
+Fig.~\ref{fig:occscatter}.
+
+\begin{table}[b]
+\centering
+\small
+\caption{Rank correlation between the annotator ``cannot assess'' rate and whole-tile image
+statistics ($n=505$).}
+\label{tab:occ}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Statistic} & \textbf{Spearman $\rho$} \\
+\midrule
+Edge density   & $-0.366$ \\
+Brightness     & $+0.116$ \\
+Saturation     & $-0.095$ \\
+Contrast       & $-0.035$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Only edge density correlates meaningfully; brightness is weak and contrast is essentially zero. The
+composite ranking is therefore measuring ``texture-poor'', not ``bright and flat'' as hypothesised.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/occlusion_scatter.png}
+\caption{Annotator ``cannot assess'' rate against four whole-tile statistics. Only edge density
+(right) shows a usable relationship.}
+\label{fig:occscatter}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.97\textwidth]{figures/occlusion_gallery.png}
+\caption{Highest-ranked occlusion candidates, pre-disaster on top and post-disaster below. These
+are cloud over \texttt{sunda-tsunami} and \texttt{lower-puna-volcano} scenes --- not smoke over
+wildfire. The worst tile has brightness 0.99 at contrast 0.049.}
+\label{fig:occgallery}
+\end{figure*}
+
+\keybox{accentbg}{
+\textbf{Result, and why nothing was removed.} The highest-ranked tiles are \emph{cloud over
+tsunami and volcano scenes}, not smoke over wildfire (Fig.~\ref{fig:occgallery}). At the 98th
+percentile the flagged set is 14 scenes: 11 in \texttt{train}, 3 in \texttt{val},
+\textbf{0 in either test split}. We removed nothing, for four reasons.
+\emph{(i)}~There is no ground truth against which to validate a threshold, so any cut point would be
+tuned by eye and would introduce an unmeasurable bias.
+\emph{(ii)}~The affected volume is negligible and touches no reported metric.
+\emph{(iii)}~Occlusion is part of the deployment problem --- a system running on real post-disaster
+imagery will meet cloud and smoke, and deleting it measures a scenario that does not exist.
+\emph{(iv)}~A safer patch-level filter already exists downstream, rejecting crops that are
+essentially pure white or black; in this run it rejected zero patches.
+Candidates are exported for manual review instead.}
+
+\subsection{Leakage checks}
+
+A perceptual-hash duplicate test over a 400-scene sample returned 28 near-duplicate pairs, 19 of
+them crossing a split boundary. Investigated rather than waved through: every cross-split pair links
+\emph{different events on different continents} --- one \texttt{portugal-wildfire} tile matching
+\texttt{nepal-flooding}, \texttt{hurricane-harvey}, \texttt{sunda-tsunami}, \texttt{palu-tsunami}
+and \texttt{moore-tornado} simultaneously. A single tile cannot be the same location as five
+unrelated disasters. The cause is hash degeneracy: a 64-bit difference hash of a low-texture tile
+(open water, unbroken forest, solid cloud) collapses toward a constant, so flat tiles collide with
+each other regardless of content. We find no evidence of leakage, consistent with the scene-level
+split design.
+
+% =====================================================================
+\section{Method}
+
+\subsection{Patch construction}
+
+One sample is two $64\times64\times3$ \texttt{uint8} patches cropped from the \emph{same} pixel
+bounding box in the pre- and post-disaster tile, plus one integer label. Because the tiles are
+already co-registered, no warping is required; preprocessing is crop, resize, scale to $[0,1]$ and
+ImageNet normalisation.
+
+Scenes were sampled under a compute budget, stratified by event and restricted to scenes with at
+least five usable buildings, yielding \textbf{135{,}262} patch pairs from 1{,}698 scenes
+(Table~\ref{tab:patches}). Patches are written to memory-mapped arrays rather than individual image
+files, which keeps the working set on disk and the loader fast.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Extracted patch pairs per split and class. Note the support for \class{minor} and
+\class{major} in \texttt{test\_ood}.}
+\label{tab:patches}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+& \class{none} & \class{minor} & \class{major} & \class{destr} & \textbf{total} \\
+\midrule
+\texttt{train}     & 55{,}284 & 7{,}661 & 6{,}265 & 3{,}706 & 72{,}916 \\
+\texttt{val}       & 15{,}701 & 2{,}571 & 1{,}164 & 1{,}010 & 20{,}446 \\
+\texttt{test\_id}  & 20{,}500 & 2{,}840 & 2{,}512 & 1{,}421 & 27{,}273 \\
+\texttt{test\_ood} & 12{,}056 & \textbf{116} & \textbf{138} & 2{,}317 & 14{,}627 \\
+\midrule
+\textbf{Total} & & & & & \textbf{135{,}262} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Architecture}
+
+The task is a comparison, not the classification of a single image. Using only the post-disaster
+patch discards the reference, while stacking pre and post into a six-channel input forces the first
+convolution to be relearned, throwing away the pretrained weights exactly where they transfer best.
+We therefore use a \textbf{siamese encoder with shared weights}, with a small head reading
+\[
+\big[\;f_{\text{pre}},\;\; f_{\text{post}},\;\; \lvert f_{\text{pre}} - f_{\text{post}}\rvert\;\big].
+\]
+The absolute difference is the explicit change signal; retaining the raw features alongside it lets
+the head use appearance as well. Shared weights halve the parameter count and force both branches
+into a common feature space, which is what makes the difference term meaningful.
+
+The encoder is an ImageNet-pretrained ResNet-18~\cite{resnet,imagenet}. At a $64\times64$ input,
+depth stops paying: architectures designed for $224$\,px inputs downsample away the little spatial
+resolution available, and a vision transformer would reduce a 64\,px image to a handful of tokens
+without nearly enough data to compensate for the missing convolutional prior. ResNet-18 also keeps
+the comparison honest --- the project's other model is a compact from-scratch CNN, and a much larger
+backbone would make any win attributable to model size rather than to pretraining.
+
+\subsection{Training}
+
+Training follows a linear-probe-then-fine-tune schedule~\cite{lpft}: phase~1 trains only the head on
+a frozen backbone for 4 epochs at $10^{-3}$, so that the randomly initialised head does not push
+large gradients into good weights; phase~2 unfreezes \texttt{layer3} and \texttt{layer4} for
+10 epochs at $10^{-4}$. Early layers transfer essentially unchanged, while the late semantic layers
+are what must be repurposed. This ordering was chosen deliberately because it distorts pretrained
+features less, which matters when the headline result is out-of-domain performance.
+
+Optimisation uses AdamW with cosine annealing, weighted cross-entropy, mixed precision, and
+checkpointing plus early stopping on validation macro-F1. Everything ran on a single Kaggle
+Tesla~T4: patch extraction took 2.3 minutes and the 14 training epochs about 5.4 minutes.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/training_curves.png}
+\caption{Training history. The dotted line marks the transition from frozen backbone to fine-tuning.
+Note that from fine-tune epoch~3 onward validation loss rises while validation macro-F1 keeps
+improving.}
+\label{fig:curves}
+\end{figure*}
+
+The curves (Fig.~\ref{fig:curves}) contain two observations worth recording. Unfreezing lifted
+validation macro-F1 from 0.477 to \textbf{0.580 in a single epoch} --- the clearest evidence in this
+study that a frozen ImageNet backbone is not sufficient for satellite imagery and that fine-tuning
+is doing real work. Second, from fine-tune epoch~3 the validation \emph{loss} rises
+($0.588 \to 0.615$) while macro-F1 continues to improve ($0.623 \to 0.640$). Under a weighted loss
+on imbalanced data this is expected: the model grows over-confident faster than it grows wrong. It
+is also why loss would have been the wrong early-stopping criterion. Early stopping did not trigger;
+the best epoch was the 9th of 10.
+
+% =====================================================================
+\section{Results}
+\label{sec:results}
+
+\begin{table}[t]
+\centering
+\small
+\caption{Headline results. One trained model, three evaluation sets.}
+\label{tab:main}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+& \textbf{Accuracy} & \textbf{Macro-F1} & \textbf{ROC-AUC} \\
+\midrule
+\texttt{val} (seen)          & 0.793 & 0.640 & 0.916 \\
+\texttt{test\_id} (seen)     & 0.775 & 0.637 & 0.917 \\
+\texttt{test\_ood} (wildfire)& 0.636 & 0.396 & 0.797 \\
+\midrule
+Absolute drop  & $-0.139$ & $-0.241$ & $-0.120$ \\
+Relative drop  & $-17.9\%$ & $-37.9\%$ & $-13.0\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:main} gives the headline numbers. \texttt{val} and \texttt{test\_id} agree to
+0.003 macro-F1, which matters: it shows the in-distribution figure is not a lucky validation draw,
+so the gap is a genuine domain effect rather than noise.
+
+\subsection{Per-class behaviour}
+
+The aggregate drop is misleading, and the per-class view (Table~\ref{tab:perclass},
+Fig.~\ref{fig:recall}) shows why.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Per-class F1 and out-of-domain precision. \class{destroyed} performs \emph{better} out of
+domain than in it.}
+\label{tab:perclass}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Class} & \textbf{F1 id} & \textbf{F1 ood} & \textbf{P ood} & \textbf{$n$ ood} \\
+\midrule
+\class{no-damage}    & 0.877 & 0.765 & 0.977 & 12{,}056 \\
+\class{minor-damage} & 0.502 & \textbf{0.023} & \textbf{0.012} & 116 \\
+\class{major-damage} & 0.539 & \textbf{0.042} & \textbf{0.022} & 138 \\
+\class{destroyed}    & 0.631 & \textbf{0.754} & 0.801 & 2{,}317 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/per_class_recall.png}
+\caption{Per-class recall by split. Recall on the intermediate classes degrades out of domain but
+does not vanish; it is precision that collapses.}
+\label{fig:recall}
+\end{figure}
+
+\class{destroyed} scores 0.754 on wildfire against 0.631 in domain, and \class{no-damage} precision
+reaches 0.977. A model that has never seen a fire recognises burnt-out buildings \emph{better} than
+it recognises hurricane destruction. The collapse is confined entirely to the two intermediate
+classes, where precision falls to 0.012 and 0.022.
+
+\subsection{Error structure}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.78\textwidth]{figures/confusion_matrices.png}
+\caption{Confusion matrices, raw counts (top) and normalised per true class (bottom). The
+\texttt{test\_ood} panel shows probability mass pushed off the diagonal in one direction --- toward
+greater severity --- rather than scattered.}
+\label{fig:confusion}
+\end{figure*}
+
+Of all out-of-domain errors, \textbf{85.6\,\% over-estimate severity} and only 14.4\,\%
+under-estimate it (Fig.~\ref{fig:confusion}). Restricting attention to buildings that are truly
+undamaged, the model predicts \class{no-damage} for 62.8\,\%, \class{minor} for 19.4\,\%,
+\class{major} for 14.8\,\% and \class{destroyed} for 3.0\,\% --- a \textbf{37.2\,\%} false-alarm
+rate. This confirms the prediction made from the exploratory analysis before training.
+
+% =====================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\keybox{accentbg}{
+\textbf{The features transfer; the calibration does not.} Four independent measurements support
+this reading of the 37.9\,\% macro-F1 drop.
+\emph{(1)}~\class{destroyed} scores higher out of domain than in it (0.754 vs.\ 0.631) and
+\class{no-damage} precision is 0.977 --- the two classes that actually occur under wildfire are
+recognised well.
+\emph{(2)}~85.6\,\% of errors move in one direction. A consistent bias is the signature of a shifted
+prior; failed representations would produce diffuse, symmetric confusion.
+\emph{(3)}~ROC-AUC, which does not depend on a decision threshold, holds at 0.797 against 0.917 in
+domain. The ranking survives; the boundary is what breaks.
+\emph{(4)}~The collapse is arithmetically forced. \class{minor} and \class{major} are 10.5\,\% and
+8.6\,\% of training patches but 0.79\,\% and 0.94\,\% of wildfire patches. A classifier calibrated
+for a 10\,\% prior emits roughly 4{,}800 intermediate predictions against 254 true cases, capping
+precision near 0.02 regardless of feature quality.}
+
+The distinction is not academic. A representation failure would mean the approach cannot be deployed
+on a new disaster type at all. A calibration failure means the ranking is usable and the decision
+rule needs adjusting --- a far more tractable problem, and one with an established remedy in prior
+correction~\cite{saerens}, which rescales class posteriors by the ratio of target to source priors
+without retraining.
+
+Operationally, a model like this deployed on an unlabelled new disaster type would reliably separate
+destroyed from intact structures while badly over-reporting intermediate damage. For triage --- ``where
+should responders look first'' --- that failure mode is comparatively benign. For damage
+\emph{quantification}, and certainly for aid allocation, it is not, and acting on predicted rather
+than verified damage carries a real risk of misdirecting resources.
+
+The exploratory prediction about \texttt{BBOX\_PAD} also lands here. Because context change misleads
+the model under wildfire, enlarging the crop margin would likely make transfer \emph{worse}, not
+better --- a testable claim we have not yet run.
+
+% =====================================================================
+\section{Limitations}
+
+\begin{itemize}[leftmargin=*,itemsep=3pt,topsep=3pt]
+\item \textbf{Thin out-of-domain support.} \class{minor} and \class{major} rest on 116 and 138 true
+examples in \texttt{test\_ood}. These two classes drive the macro-F1 story, and their per-class
+figures carry wide uncertainty.
+\item \textbf{Annotator selection.} Every number is measured on buildings that human annotators were
+\emph{able} to assess; the \class{un-classified} polygons are excluded. True zero-shot difficulty is
+therefore somewhat higher than reported.
+\item \textbf{Confounded acquisition geometry.} The sun-elevation shift is real but inseparable from
+event identity with only 19 events.
+\item \textbf{Partial duplicate check.} The near-duplicate test covers 400 of 11{,}034 scenes and
+relies on a perceptual hash that degenerates on low-texture tiles.
+\item \textbf{Selection protocol.} Model selection uses \texttt{val}, which is in-distribution.
+Longer fine-tuning may improve \texttt{test\_id} while harming \texttt{test\_ood}; selecting on the
+out-of-domain set would leak the test set, so this is the correct protocol but a genuine constraint.
+\item \textbf{Budgeted sampling.} Results are computed on a stratified sample of scenes rather than
+the full dataset.
+\end{itemize}
+
+% =====================================================================
+\section{Status and next steps}
+
+Completed: Part~1 in full, and the pretrained model of Part~2. Outstanding work, in priority order:
+
+\begin{enumerate}[leftmargin=*,itemsep=3pt,topsep=3pt]
+\item \textbf{From-scratch CNN baseline}, trained on the identical patch arrays so that the
+comparison isolates pretraining rather than architecture or data.
+\item \textbf{Test the calibration hypothesis directly.} Apply prior correction~\cite{saerens} to the
+existing out-of-domain predictions and measure how much of the 37.9\,\% macro-F1 gap closes without
+retraining. If most of it closes, that is the strongest result the project can report.
+\item \textbf{Few-shot ablation}: add 1--5\,\% of wildfire scenes to training and re-measure the gap.
+\item \textbf{Damage map} for a held-out event, using the per-building WGS84 coordinates already
+present in the labels.
+\item \textbf{Part~3}: overlay predicted damage with socioeconomic data.
+\end{enumerate}
+
+\paragraph{Reproducibility.} The pipeline is a single notebook that reads the frozen split file,
+runs on Kaggle or locally, and writes all artefacts --- patch arrays, cleaning ledger, occlusion
+candidates, training history and result tables --- to disk. Seed 42 throughout.
+
+\paragraph{Contributions.} Artur Zavistovskyi: exploratory analysis, data cleaning and quality
+diagnostics, patch pipeline, pretrained model, evaluation, this report. Bhuvanesh Dinesh Wadhwani:
+dataset indexing and the train/val/test split design used here. Yitian Zhou: pretrained model
+(joint). Anastasiia Khitrova: from-scratch CNN and impact analysis (in progress).
+
+% =====================================================================
+\begin{thebibliography}{9}
+\small
+
+\bibitem{xbd}
+R.~Gupta \emph{et al.},
+``xBD: A Dataset for Assessing Building Damage from Satellite Imagery,''
+\emph{arXiv:1911.09296}, 2019.
+
+\bibitem{fusion}
+E.~Weber and H.~Kan\'e,
+``Building Disaster Damage Assessment in Satellite Imagery with Multi-Temporal Fusion,''
+\emph{arXiv:2004.05525}, 2020.
+
+\bibitem{resnet}
+K.~He, X.~Zhang, S.~Ren and J.~Sun,
+``Deep Residual Learning for Image Recognition,''
+\emph{CVPR}, 2016.
+
+\bibitem{imagenet}
+J.~Deng \emph{et al.},
+``ImageNet: A Large-Scale Hierarchical Image Database,''
+\emph{CVPR}, 2009.
+
+\bibitem{lpft}
+A.~Kumar, A.~Raghunathan, R.~Jones, T.~Ma and P.~Liang,
+``Fine-Tuning can Distort Pretrained Features and Underperform Out-of-Distribution,''
+\emph{ICLR}, 2022.
+
+\bibitem{saerens}
+M.~Saerens, P.~Latinne and C.~Decaestecker,
+``Adjusting the Outputs of a Classifier to New a Priori Probabilities,''
+\emph{Neural Computation}, 14(1):21--41, 2002.
+
+\bibitem{pytorch}
+A.~Paszke \emph{et al.},
+``PyTorch: An Imperative Style, High-Performance Deep Learning Library,''
+\emph{NeurIPS}, 2019.
+
+\bibitem{xview2}
+xView2 Challenge, \url{https://xview2.org}.
+
+\end{thebibliography}
+
+\end{document}
