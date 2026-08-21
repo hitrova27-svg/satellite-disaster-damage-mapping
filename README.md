@@ -32,6 +32,16 @@ See [EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md) and
 [`results/model_comparison.csv`](results/model_comparison.csv) for the full
 comparison and reproducibility notes.
 
+## Trained model downloads
+
+The best checkpoints from both experiments are published in the
+[`v1.0-trained-models` GitHub Release](https://github.com/artyz1200-hub/satellite-disaster-damage-mapping/releases/tag/v1.0-trained-models):
+
+- [`pretrained_siamese_resnet18.pt`](https://github.com/artyz1200-hub/satellite-disaster-damage-mapping/releases/download/v1.0-trained-models/pretrained_siamese_resnet18.pt)
+  (44.23 MB): ImageNet-pretrained Siamese ResNet-18, best epoch 35.
+- [`from_scratch_siamese_cnn.pt`](https://github.com/artyz1200-hub/satellite-disaster-damage-mapping/releases/download/v1.0-trained-models/from_scratch_siamese_cnn.pt)
+  (5.25 MB): compact Siamese CNN trained from scratch, best epoch 8.
+
 ## Repository guide
 
 - `artur_xbd_LOCAL_50E.ipynb`: pretrained ResNet-18 formal experiment.
@@ -84,5 +94,6 @@ xBD is not committed. Obtain it from the xView2 source or the configured Kaggle
 mirror. Do not commit `xbd/`, archives, `.venv/`, extracted patch arrays, or
 training work directories.
 
-Model checkpoints are also generated locally. Publish them through Git LFS, a
-GitHub Release, or Kaggle rather than adding training data to normal Git history.
+Model checkpoints are generated locally and the best checkpoints are published
+through the GitHub Release linked above. They are not committed to normal Git
+history.
