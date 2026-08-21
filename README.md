@@ -28,7 +28,7 @@ macro-F1 with patience 8.
 | ImageNet-pretrained Siamese ResNet-18 | 43 | 35 | 0.6656 | 0.6498 | 0.4292 |
 | From-scratch Siamese CNN | 16 | 8 | 0.5967 | 0.6148 | 0.3768 |
 
-See [EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md) and
+See [`docs/experiment_results.md`](docs/experiment_results.md) and
 [`results/model_comparison.csv`](results/model_comparison.csv) for the full
 comparison and reproducibility notes.
 
@@ -42,15 +42,111 @@ The best checkpoints from both experiments are published in the
 - [`from_scratch_siamese_cnn.pt`](https://github.com/artyz1200-hub/satellite-disaster-damage-mapping/releases/download/v1.0-trained-models/from_scratch_siamese_cnn.pt)
   (5.25 MB): compact Siamese CNN trained from scratch, best epoch 8.
 
-## Repository guide
+## Repository layout
 
-- `artur_xbd_LOCAL_50E.ipynb`: pretrained ResNet-18 formal experiment.
-- `train_from_scratch_50e.py`: from-scratch CNN formal experiment.
-- `artur_xbd_LOCAL_SMOKE.ipynb`: short end-to-end local validation.
-- `make_splits.py`: builds and validates the scene-level split.
-- `splits.csv`: shared file index and split assignment.
-- `results/`: lightweight metrics, histories, confusion matrices, and curves.
-- `LOCAL_SETUP.md`: Windows environment, data download, and launch commands.
+```text
+.
+├── notebooks/                 pretrained-model notebooks
+│   └── archive/               preserved handoff version
+├── scripts/                   download, split, setup, and scratch-CNN scripts
+├── data/                      committed split definitions (not xBD imagery)
+├── docs/                      project specification and experiment guides
+├── results/                   final lightweight metrics and plots
+├── figures/                   figures used by the existing LaTeX report
+├── report.tex                 existing report source
+├── report.pdf                 existing compiled report
+├── requirements-local.txt     local Python dependencies
+├── README.md                  project entry point
+└── LICENSE                    MIT license
+```
+
+### Root files
+
+| Path | Purpose |
+|---|---|
+| `README.md` | Project overview, headline results, file guide, model downloads, and run commands. |
+| `requirements-local.txt` | Python packages required by the local Windows environment. CUDA-enabled PyTorch is installed separately. |
+| `.gitignore` | Excludes xBD imagery, archives, virtual environments, extracted patches, logs, executed notebooks, and checkpoints. |
+| `LICENSE` | MIT open-source license. |
+| `report.tex` | Existing LaTeX report source maintained by the team. |
+| `report.pdf` | Existing compiled report. |
+
+### Notebooks
+
+| Path | Purpose |
+|---|---|
+| `notebooks/pretrained_resnet18_train.ipynb` | Formal local experiment for the ImageNet-pretrained Siamese ResNet-18. It performs EDA, cleaning, patch extraction, training, and evaluation. |
+| `notebooks/pretrained_resnet18_smoke_test.ipynb` | Small end-to-end environment check. It uses fewer scenes and short training phases; its metrics are not final results. |
+| `notebooks/pretrained_resnet18_kaggle_reference.ipynb` | Executed Kaggle T4 reference notebook with the earlier pretrained-model run and embedded outputs. It is preserved for comparison, not used as the final two-model result. |
+| `notebooks/archive/pretrained_resnet18_local_handoff.ipynb` | Earlier local handoff version preserved for history. Use the formal training notebook above for current runs. |
+
+The from-scratch model is trained by a Python script rather than a notebook so
+that it can resume cleanly after an interruption.
+
+### Scripts
+
+| Path | Purpose |
+|---|---|
+| `scripts/download_xbd.py` | Resumable range downloader for the Kaggle xBD archive. |
+| `scripts/prepare_splits.py` | Scans xBD, creates the scene-level train/val/test-ID/test-OOD assignment, and checks leakage and file integrity. |
+| `scripts/train_scratch_cnn.py` | Trains and evaluates the compact Siamese CNN from random initialization on the patches created by the pretrained notebook. |
+| `scripts/setup_windows.ps1` | Waits for a download, validates and extracts the archive, checks the split, and runs the smoke notebook on Windows. |
+
+### Data definitions
+
+| Path | Purpose |
+|---|---|
+| `data/splits.csv` | File-level xBD index: 77,238 rows mapping each image, label, and mask file to a scene, disaster, origin, and split. |
+| `data/splits_summary.csv` | Scene-level summary: 11,034 rows used to inspect event composition and split counts. |
+
+These CSVs define the shared experiment split. They are not the xBD image
+dataset and are safe to keep in Git.
+
+### Documentation
+
+| Path | Purpose |
+|---|---|
+| `docs/project_specification.md` | Original project description, required steps, and grading criteria. |
+| `docs/experiment_results.md` | Final two-model comparison, interpretation, limitations, and reproduction commands. |
+| `docs/local_setup.md` | Detailed Windows, Kaggle, CUDA, directory-layout, and local-run instructions. |
+
+### Final results
+
+| Path | Purpose |
+|---|---|
+| `results/model_comparison.csv` | Single summary table comparing both models across validation, test-ID, and wildfire test-OOD. |
+| `results/pretrained_resnet18/results_overall.csv` | Overall metrics for the pretrained model. |
+| `results/pretrained_resnet18/results_per_class.csv` | Per-class precision, recall, F1, and support for the pretrained model. |
+| `results/pretrained_resnet18/training_history.csv` | Epoch-by-epoch pretrained-model loss and validation metrics. |
+| `results/pretrained_resnet18/training_curves.png` | Pretrained-model training curves. |
+| `results/scratch_cnn/results_overall.csv` | Overall metrics for the from-scratch CNN. |
+| `results/scratch_cnn/results_per_class.csv` | Per-class precision, recall, F1, and support for the scratch CNN. |
+| `results/scratch_cnn/training_history.csv` | Epoch-by-epoch scratch-CNN loss and validation metrics. |
+| `results/scratch_cnn/training_curves.png` | Scratch-CNN training curves. |
+| `results/scratch_cnn/confusion_matrices.csv` | Confusion matrices for validation, test-ID, and test-OOD. |
+| `results/scratch_cnn/run_config.json` | GPU, seed, batch size, stopping rule, paths, parameter count, and best epoch for the scratch run. |
+
+### Existing report figures
+
+The `figures/` directory belongs to the existing LaTeX report. These files are
+separate from the final local-run plots under `results/`.
+
+| Path | Purpose |
+|---|---|
+| `figures/bbox_geometry.png` | Building bounding-box size and geometry diagnostics. |
+| `figures/buildings_per_scene.png` | Distribution of annotated building counts per scene. |
+| `figures/capture_metadata.png` | Satellite capture-metadata distributions. |
+| `figures/class_dist_event.png` | Damage-class distribution by disaster event. |
+| `figures/class_dist_split.png` | Damage-class distribution across train, validation, test-ID, and test-OOD. |
+| `figures/confusion_matrices.png` | Confusion matrices from the earlier reference run. |
+| `figures/examples_ood.png` | Example wildfire test-OOD scenes. |
+| `figures/examples_train.png` | Example training scenes. |
+| `figures/occlusion_gallery.png` | Gallery of highly ranked cloud/occlusion candidates. |
+| `figures/occlusion_scatter.png` | Relationship between image statistics and unclassified-label rates. |
+| `figures/patches_grid.png` | Paired pre/post building-patch examples. |
+| `figures/per_class_recall.png` | Per-class recall from the earlier reference evaluation. |
+| `figures/training_curves.png` | Training curves from the earlier reference run. |
+| `figures/unclassified_rate.png` | Distribution of unclassified annotation rates. |
 
 ## Local run
 
@@ -58,7 +154,8 @@ The expected layout is:
 
 ```text
 <repo>/
-  splits.csv
+  data/splits.csv
+  data/splits_summary.csv
   xbd/{hold,test,tier1,tier3}/{images,labels,masks}/
 ```
 
@@ -72,8 +169,9 @@ Run the pretrained experiment from Jupyter, or non-interactively:
 
 ```powershell
 .\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
-  .\artur_xbd_LOCAL_50E.ipynb `
-  --output artur_xbd_LOCAL_50E.executed.ipynb `
+  .\notebooks\pretrained_resnet18_train.ipynb `
+  --output pretrained_resnet18_train.executed.ipynb `
+  --output-dir .\notebooks `
   --ExecutePreprocessor.kernel_name=xbd-local `
   --ExecutePreprocessor.timeout=-1
 ```
@@ -82,7 +180,7 @@ The pretrained notebook creates the shared patch arrays. Train the scratch CNN
 on those exact arrays with:
 
 ```powershell
-.\.venv\Scripts\python.exe .\train_from_scratch_50e.py `
+.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
   --epochs 50 --batch-size 128 --patience 8
 ```
 

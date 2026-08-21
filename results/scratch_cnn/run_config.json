@@ -1,6 +1,6 @@
 {
-  "patch_dir": "work-pretrained-50e\\patches",
-  "output_dir": "work-scratch-50e",
+  "patch_dir": "work-pretrained\\patches",
+  "output_dir": "work-scratch",
   "epochs": 50,
   "batch_size": 128,
   "patience": 8,

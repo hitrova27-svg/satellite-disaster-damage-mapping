@@ -4,12 +4,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $ProjectRoot
 
 Write-Output "Waiting for xBD downloader PID $DownloadPid"
 Wait-Process -Id $DownloadPid
 
-$archive = Join-Path $PSScriptRoot 'xbd-dataset.zip'
+$archive = Join-Path $ProjectRoot 'xbd-dataset.zip'
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
     throw "Downloader exited without creating $archive"
 }
@@ -21,16 +22,17 @@ Write-Output 'Extracting xBD archive'
 tar.exe -xf $archive
 
 Write-Output 'Validating dataset layout and split assignment'
-& .\.venv\Scripts\python.exe .\make_splits.py --src .\xbd --out . --dry-run
+& .\.venv\Scripts\python.exe .\scripts\prepare_splits.py --src .\xbd --out .\data --dry-run
 if ($LASTEXITCODE -ne 0) {
-    throw "make_splits.py validation failed with exit code $LASTEXITCODE"
+    throw "prepare_splits.py validation failed with exit code $LASTEXITCODE"
 }
 
 Write-Output 'Executing local CUDA smoke notebook'
 & .\.venv\Scripts\jupyter.exe nbconvert `
     --to notebook `
-    --execute .\artur_xbd_LOCAL_SMOKE.ipynb `
-    --output artur_xbd_LOCAL_SMOKE.executed.ipynb `
+    --execute .\notebooks\pretrained_resnet18_smoke_test.ipynb `
+    --output pretrained_resnet18_smoke_test.executed.ipynb `
+    --output-dir .\notebooks `
     --ExecutePreprocessor.kernel_name=xbd-local `
     --ExecutePreprocessor.timeout=-1
 if ($LASTEXITCODE -ne 0) {

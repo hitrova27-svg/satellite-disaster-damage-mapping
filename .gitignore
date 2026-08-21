@@ -7,15 +7,13 @@ xbd/
 *.kaggle-partial
 download-xbd*.log
 local-setup*.log
-artur_xbd_LOCAL_SMOKE.executed.ipynb
-artur_xbd_LOCAL_50E.executed.ipynb
+*.executed.ipynb
 data/raw/
 data/processed/
 checkpoints/
 .ipynb_checkpoints/
-work/          # local run scratch (Kaggle uses /kaggle/working)
+# Local generated training artifacts (Kaggle uses /kaggle/working).
+work/
 work-smoke/
-work-pretrained-50e/
-work-scratch-50e/
-
-data/
+work-pretrained/
+work-scratch/

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-make_splits.py — index the four xBD directories and assign train/val/test splits.
+prepare_splits.py — index the four xBD directories and assign train/val/test splits.
 
 PURPOSE
 -------
@@ -16,8 +16,8 @@ The output is a CSV. By default NO image files are moved, copied or linked:
 each row records the file's original path, and downstream code reads paths from the CSV.
 
 INPUT   xbd/{hold,test,tier1,tier3}/{images,labels,masks}/
-OUTPUT  splits.csv          one row per file: path, scene, disaster, split
-        splits_summary.csv  one row per scene (convenient for plots)
+OUTPUT  data/splits.csv          one row per file: path, scene, disaster, split
+        data/splits_summary.csv  one row per scene (convenient for plots)
 
 SPLIT DESIGN
 ------------
@@ -438,8 +438,8 @@ def main() -> None:
     ap.add_argument("--src", type=Path, default=Path("xbd"),
                     help="dataset root holding hold/test/tier1/tier3 "
                          "(default: xbd)")
-    ap.add_argument("--out", type=Path, default=Path("."),
-                    help="where to write splits.csv (default: cwd)")
+    ap.add_argument("--out", type=Path, default=Path("data"),
+                    help="where to write splits.csv (default: data)")
     ap.add_argument("--seed", type=int, default=42,
                     help="controls the train/val draw only (default: 42)")
     ap.add_argument("--val-frac", type=float, default=0.111,

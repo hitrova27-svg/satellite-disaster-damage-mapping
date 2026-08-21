@@ -5,8 +5,9 @@ The tested local layout is:
 ```text
 D:\DLSS\satellite-disaster-damage-mapping\
   .venv\
-  splits.csv
-  splits_summary.csv
+  data\
+    splits.csv
+    splits_summary.csv
   xbd\
     hold\{images,labels,masks}
     test\{images,labels,masks}
@@ -44,7 +45,7 @@ repository therefore includes an eight-range downloader that resumes each
 part independently:
 
 ```powershell
-.\.venv\Scripts\python.exe .\download_xbd_parallel.py --parts 8 --workers 1
+.\.venv\Scripts\python.exe .\scripts\download_xbd.py --parts 8 --workers 1
 ```
 
 Re-run the same command after an interruption. Completed bytes in
@@ -52,7 +53,7 @@ Re-run the same command after an interruption. Completed bytes in
 `xbd-dataset.zip`.
 
 Extract the archive into the repository root. Its top-level `xbd\` directory
-must sit next to `splits.csv`:
+must sit in the repository root, next to the `data\` directory:
 
 ```powershell
 tar.exe -xf .\xbd-dataset.zip
@@ -62,7 +63,7 @@ Then validate the data and split assignment without overwriting the supplied
 CSV files:
 
 ```powershell
-.\.venv\Scripts\python.exe .\make_splits.py --src .\xbd --out . --dry-run
+.\.venv\Scripts\python.exe .\scripts\prepare_splits.py --src .\xbd --out .\data --dry-run
 ```
 
 ## Run locally
@@ -73,11 +74,18 @@ Start Jupyter from the repository root so relative paths resolve correctly:
 .\.venv\Scripts\jupyter-lab.exe
 ```
 
-Use `artur_xbd_LOCAL_SMOKE.ipynb` first. It is configured for the tested
+Use `notebooks\pretrained_resnet18_smoke_test.ipynb` first. It is configured for the tested
 Windows laptop with 16 GB RAM and 8 GB VRAM: 170 scenes, batch size 32, four
 extraction threads, and one epoch in each training phase. Its artifacts go to
 `work-smoke\`.
 
-After the smoke notebook succeeds, use `artur_xbd_NESH_CAN_RUN.ipynb` for the
-full reference configuration. The default full run creates about 3.5 GB under
-`work\` and takes substantially longer.
+After the smoke notebook succeeds, use
+`notebooks\pretrained_resnet18_train.ipynb` for the formal pretrained run. It
+creates about 3.5 GB under `work-pretrained\` and takes substantially longer.
+
+Train the from-scratch CNN on the same extracted patches with:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
+  --epochs 50 --batch-size 128 --patience 8
+```

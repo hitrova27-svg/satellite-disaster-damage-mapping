@@ -182,9 +182,9 @@ def save_curves(history: pd.DataFrame, output_dir: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--patch-dir", type=Path, default=Path("work-pretrained-50e/patches")
+        "--patch-dir", type=Path, default=Path("work-pretrained/patches")
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("work-scratch-50e"))
+    parser.add_argument("--output-dir", type=Path, default=Path("work-scratch"))
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--patience", type=int, default=8)

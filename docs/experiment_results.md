@@ -28,8 +28,9 @@ Pretrained experiment:
 
 ```powershell
 .\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
-  .\artur_xbd_LOCAL_50E.ipynb `
-  --output artur_xbd_LOCAL_50E.executed.ipynb `
+  .\notebooks\pretrained_resnet18_train.ipynb `
+  --output pretrained_resnet18_train.executed.ipynb `
+  --output-dir .\notebooks `
   --ExecutePreprocessor.kernel_name=xbd-local `
   --ExecutePreprocessor.timeout=-1
 ```
@@ -37,12 +38,13 @@ Pretrained experiment:
 From-scratch experiment:
 
 ```powershell
-.\.venv\Scripts\python.exe .\train_from_scratch_50e.py `
+.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
   --epochs 50 --batch-size 128 --patience 8
 ```
 
 Add `--resume` to the from-scratch command after an interrupted run.
 
 Model checkpoints remain in the ignored local `work-*/checkpoints/`
-directories. Publish them through Git LFS, a GitHub Release, or Kaggle rather
-than committing generated training data or the xBD dataset to Git.
+directories. The best checkpoints are published in the
+[`v1.0-trained-models` GitHub Release](https://github.com/artyz1200-hub/satellite-disaster-damage-mapping/releases/tag/v1.0-trained-models)
+rather than committed to normal Git history.
