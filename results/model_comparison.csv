@@ -1,0 +1,7 @@
+model,pretraining,parameters,epochs_run,best_epoch,split,n,accuracy,macro_F1,weighted_F1,macro_ROC_AUC
+pretrained_siamese_resnet18,ImageNet,11571524,43,35,val,20446,0.8301,0.6656,0.8320,0.9097
+pretrained_siamese_resnet18,ImageNet,11571524,43,35,test_id,27273,0.8079,0.6498,0.8131,0.9078
+pretrained_siamese_resnet18,ImageNet,11571524,43,35,test_ood,14627,0.7738,0.4292,0.8446,0.8136
+from_scratch_siamese_cnn,none,1371108,16,8,val,20446,0.7631,0.5967,0.7810,0.9015
+from_scratch_siamese_cnn,none,1371108,16,8,test_id,27273,0.7683,0.6148,0.7841,0.9033
+from_scratch_siamese_cnn,none,1371108,16,8,test_ood,14627,0.6304,0.3768,0.7407,0.7901

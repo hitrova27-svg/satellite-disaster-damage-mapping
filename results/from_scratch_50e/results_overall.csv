@@ -1,0 +1,4 @@
+model,split,n,accuracy,macro_F1,weighted_F1,macro_ROC_AUC
+from_scratch_siamese_cnn,val,20446,0.7631,0.5967,0.781,0.9015
+from_scratch_siamese_cnn,test_id,27273,0.7683,0.6148,0.7841,0.9033
+from_scratch_siamese_cnn,test_ood,14627,0.6304,0.3768,0.7407,0.7901

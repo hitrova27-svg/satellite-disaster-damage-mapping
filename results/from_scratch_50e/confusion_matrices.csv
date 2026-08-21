@@ -1,0 +1,13 @@
+true_class,no-damage,minor-damage,major-damage,destroyed,split,model
+no-damage,12617,1710,518,856,val,from_scratch_siamese_cnn
+minor-damage,650,1583,220,118,val,from_scratch_siamese_cnn
+major-damage,171,319,539,135,val,from_scratch_siamese_cnn
+destroyed,55,61,30,864,val,from_scratch_siamese_cnn
+no-damage,16766,1801,975,958,test_id,from_scratch_siamese_cnn
+minor-damage,743,1645,307,145,test_id,from_scratch_siamese_cnn
+major-damage,407,409,1459,237,test_id,from_scratch_siamese_cnn
+destroyed,93,109,136,1083,test_id,from_scratch_siamese_cnn
+no-damage,7732,2144,1703,477,test_ood,from_scratch_siamese_cnn
+minor-damage,40,36,33,7,test_ood,from_scratch_siamese_cnn
+major-damage,20,41,56,21,test_ood,from_scratch_siamese_cnn
+destroyed,220,172,528,1397,test_ood,from_scratch_siamese_cnn

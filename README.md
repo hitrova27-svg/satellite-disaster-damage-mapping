@@ -1,42 +1,88 @@
-# 🛰️ Mapping Natural-Disaster Damage from Satellite Imagery
+# Mapping Natural-Disaster Damage from Satellite Imagery
 
-Single-notebook project (built for **Kaggle**): classify **per-building damage** by comparing
-satellite imagery **before vs after** a disaster (*change detection*), on the xBD / xView2 dataset.
+Per-building damage classification from paired pre/post satellite imagery on
+xBD. The central question is cross-disaster transfer: both models train without
+wildfire and are evaluated on wildfire as an unseen test-OOD domain.
 
 **Team:** Bhuvanesh Dinesh Wadhwani · Artur Zavistovskyi · Anastasiia Khitrova · Yitian Zhou
 
-## What it does
-- **Part 1 — data + EDA:** class imbalance, per-disaster breakdown, co-registered pre/post patches.
-- **Part 2 — models:** two siamese change-detection CNNs (from-scratch vs pretrained ResNet18),
-  evaluated on a **held-out disaster type (wildfire)** the model never trained on — the transfer
-  question that is the heart of the project.
-- **Part 3 — impact analysis:** overlay predicted damage with socioeconomic data (open / freeform).
+## Experiment
 
-Everything — code, data loading, training — lives in **[`main.ipynb`](main.ipynb)**. Kaggle opens
-only one notebook, so all helper functions are inlined (no `src/` imports).
+Both systems use the same 135,262 paired 64x64 patches and the same scene-level
+train/val/test-ID/test-OOD split.
 
-## Run it
+1. A compact shared-weight Siamese CNN trained from random initialization.
+2. A shared-weight Siamese ResNet-18 initialized from ImageNet, then fine-tuned.
 
-### On Kaggle
-1. **Add Data** ▸ attach the xBD dataset (the 4 `.tar` files below).
-2. Open `main.ipynb`, set `USE_SYNTHETIC = False`, confirm the path in the **Data path** cell.
-3. **Run All**. (Enable *Settings ▸ Internet* for the pretrained ResNet weights.)
+Each branch encodes one of the pre/post patches. The classifier receives
+`[f_pre, f_post, abs(f_pre - f_post)]` and predicts no damage, minor damage,
+major damage, or destroyed.
 
-### The one switch: `USE_SYNTHETIC`
-| Value | What happens |
-|-------|--------------|
-| `True` (default) | Toy data generated in-notebook. Full pipeline in ~3–6 min, **no download**. Numbers are fake. |
-| `False` | Real **xBD / xView2** data. Real results. |
+## Results
 
-## Data
-xBD / xView2 — request access at <https://xview2.org> and upload these as a Kaggle Dataset:
+Fifty epochs was the maximum; both runs used early stopping on validation
+macro-F1 with patience 8.
 
-| File | Why |
-|------|-----|
-| `train_images_labels_targets.tar` | main training data (PNG + JSON) |
-| `tier3.tar` | more disaster types incl. **wildfires** (our held-out type) |
-| `test_images_labels_targets.tar` | final evaluation |
-| `xview_geotransforms.json.tgz` | lat/lon for Part 3 |
+| Model | Epochs run | Best epoch | Val macro-F1 | Test-ID macro-F1 | Test-OOD macro-F1 |
+|---|---:|---:|---:|---:|---:|
+| ImageNet-pretrained Siamese ResNet-18 | 43 | 35 | 0.6656 | 0.6498 | 0.4292 |
+| From-scratch Siamese CNN | 16 | 8 | 0.5967 | 0.6148 | 0.3768 |
 
-Kaggle auto-extracts the archives; the notebook auto-detects `train/ test/ tier3/` under the
-attached dataset.
+See [EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md) and
+[`results/model_comparison.csv`](results/model_comparison.csv) for the full
+comparison and reproducibility notes.
+
+## Repository guide
+
+- `artur_xbd_LOCAL_50E.ipynb`: pretrained ResNet-18 formal experiment.
+- `train_from_scratch_50e.py`: from-scratch CNN formal experiment.
+- `artur_xbd_LOCAL_SMOKE.ipynb`: short end-to-end local validation.
+- `make_splits.py`: builds and validates the scene-level split.
+- `splits.csv`: shared file index and split assignment.
+- `results/`: lightweight metrics, histories, confusion matrices, and curves.
+- `LOCAL_SETUP.md`: Windows environment, data download, and launch commands.
+
+## Local run
+
+The expected layout is:
+
+```text
+<repo>/
+  splits.csv
+  xbd/{hold,test,tier1,tier3}/{images,labels,masks}/
+```
+
+Start Jupyter with the project environment:
+
+```powershell
+.\.venv\Scripts\jupyter-lab.exe
+```
+
+Run the pretrained experiment from Jupyter, or non-interactively:
+
+```powershell
+.\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
+  .\artur_xbd_LOCAL_50E.ipynb `
+  --output artur_xbd_LOCAL_50E.executed.ipynb `
+  --ExecutePreprocessor.kernel_name=xbd-local `
+  --ExecutePreprocessor.timeout=-1
+```
+
+The pretrained notebook creates the shared patch arrays. Train the scratch CNN
+on those exact arrays with:
+
+```powershell
+.\.venv\Scripts\python.exe .\train_from_scratch_50e.py `
+  --epochs 50 --batch-size 128 --patience 8
+```
+
+Use `--resume` after an interrupted scratch run.
+
+## Data and generated artifacts
+
+xBD is not committed. Obtain it from the xView2 source or the configured Kaggle
+mirror. Do not commit `xbd/`, archives, `.venv/`, extracted patch arrays, or
+training work directories.
+
+Model checkpoints are also generated locally. Publish them through Git LFS, a
+GitHub Release, or Kaggle rather than adding training data to normal Git history.
