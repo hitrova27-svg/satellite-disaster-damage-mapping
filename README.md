@@ -46,9 +46,9 @@ The best checkpoints from both experiments are published in the
 
 ```text
 .
-├── notebooks/                 pretrained-model notebooks
+├── notebooks/                 training notebooks
 │   └── archive/               preserved handoff version
-├── scripts/                   download, split, setup, and scratch-CNN scripts
+├── scripts/                   download, split, and setup scripts
 ├── data/                      committed split definitions (not xBD imagery)
 ├── docs/                      project specification and experiment guides
 ├── results/                   final lightweight metrics and plots
@@ -76,12 +76,10 @@ The best checkpoints from both experiments are published in the
 | Path | Purpose |
 |---|---|
 | `notebooks/pretrained_resnet18_train.ipynb` | Formal local experiment for the ImageNet-pretrained Siamese ResNet-18. It performs EDA, cleaning, patch extraction, training, and evaluation. |
+| `notebooks/train_scratch_cnn.ipynb` | Trains, validates, checkpoints, and evaluates the compact Siamese CNN from random initialization on the pretrained notebook's patch arrays. |
 | `notebooks/pretrained_resnet18_smoke_test.ipynb` | Small end-to-end environment check. It uses fewer scenes and short training phases; its metrics are not final results. |
 | `notebooks/pretrained_resnet18_kaggle_reference.ipynb` | Executed Kaggle T4 reference notebook with the earlier pretrained-model run and embedded outputs. It is preserved for comparison, not used as the final two-model result. |
 | `notebooks/archive/pretrained_resnet18_local_handoff.ipynb` | Earlier local handoff version preserved for history. Use the formal training notebook above for current runs. |
-
-The from-scratch model is trained by a Python script rather than a notebook so
-that it can resume cleanly after an interruption.
 
 ### Scripts
 
@@ -89,7 +87,6 @@ that it can resume cleanly after an interruption.
 |---|---|
 | `scripts/download_xbd.py` | Resumable range downloader for the Kaggle xBD archive. |
 | `scripts/prepare_splits.py` | Scans xBD, creates the scene-level train/val/test-ID/test-OOD assignment, and checks leakage and file integrity. |
-| `scripts/train_scratch_cnn.py` | Trains and evaluates the compact Siamese CNN from random initialization on the patches created by the pretrained notebook. |
 | `scripts/setup_windows.ps1` | Waits for a download, validates and extracts the archive, checks the split, and runs the smoke notebook on Windows. |
 
 ### Data definitions
@@ -176,15 +173,24 @@ Run the pretrained experiment from Jupyter, or non-interactively:
   --ExecutePreprocessor.timeout=-1
 ```
 
-The pretrained notebook creates the shared patch arrays. Train the scratch CNN
-on those exact arrays with:
+The pretrained notebook creates the shared patch arrays. Then open
+`notebooks/train_scratch_cnn.ipynb` and run all cells from the project root. It
+saves the best validation-macro-F1 weights to `work-scratch/checkpoints/best.pt`.
+
+For a non-interactive run, execute the notebook with:
 
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
-  --epochs 50 --batch-size 128 --patience 8
+.\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
+  .\notebooks\train_scratch_cnn.ipynb `
+  --output train_scratch_cnn.executed.ipynb `
+  --output-dir .\notebooks `
+  --ExecutePreprocessor.kernel_name=xbd-local `
+  --ExecutePreprocessor.timeout=-1
 ```
 
-Use `--resume` after an interrupted scratch run.
+Set `RESUME = True` in its configuration cell after an interrupted full run.
+Set `SMOKE_TEST = True` to exercise the checkpointing and evaluation procedure
+on a few batches without overwriting full-run artifacts.
 
 ## Data and generated artifacts
 

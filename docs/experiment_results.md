@@ -38,11 +38,16 @@ Pretrained experiment:
 From-scratch experiment:
 
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
-  --epochs 50 --batch-size 128 --patience 8
+.\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
+  .\notebooks\train_scratch_cnn.ipynb `
+  --output train_scratch_cnn.executed.ipynb `
+  --output-dir .\notebooks `
+  --ExecutePreprocessor.kernel_name=xbd-local `
+  --ExecutePreprocessor.timeout=-1
 ```
 
-Add `--resume` to the from-scratch command after an interrupted run.
+Set `RESUME = True` in the notebook configuration cell after an interrupted
+full run. Set `SMOKE_TEST = True` to run a brief isolated procedure check.
 
 Model checkpoints remain in the ignored local `work-*/checkpoints/`
 directories. The best checkpoints are published in the

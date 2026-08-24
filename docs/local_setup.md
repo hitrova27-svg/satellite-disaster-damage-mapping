@@ -86,6 +86,13 @@ creates about 3.5 GB under `work-pretrained\` and takes substantially longer.
 Train the from-scratch CNN on the same extracted patches with:
 
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\train_scratch_cnn.py `
-  --epochs 50 --batch-size 128 --patience 8
+.\.venv\Scripts\jupyter.exe nbconvert --to notebook --execute `
+  .\notebooks\train_scratch_cnn.ipynb `
+  --output train_scratch_cnn.executed.ipynb `
+  --output-dir .\notebooks `
+  --ExecutePreprocessor.kernel_name=xbd-local `
+  --ExecutePreprocessor.timeout=-1
 ```
+
+Use the notebook configuration cell to set `RESUME = True` after an interrupted
+full run, or `SMOKE_TEST = True` for an isolated short procedure check.
