@@ -1,0 +1,5 @@
+GEOID,income_2017,pov_rate_2017,median_home_value_2017,renter_pct_2017,median_year_built_2017,pop_density_2017
+tract-1,45000,0.18,295000,0.35,1985,1450
+tract-2,75000,0.08,325000,0.35,1985,1750
+tract-3,55000,0.12,305000,0.35,1985,1550
+tract-4,90000,0.05,340000,0.35,1985,1900

@@ -1,0 +1,5 @@
+GEOID,building_count,damage_score_mean,damage_score_std,share_no-damage,share_minor-damage,share_major-damage,share_destroyed,income_2017,pov_rate_2017,median_home_value_2017,renter_pct_2017,median_year_built_2017,pop_density_2017,exposure_proxy,building_density,median_building_age
+tract-1,50,2.0,0.0,0.0,0.0,1.0,0.0,45000,0.18,295000,0.35,1985,1450,0.3745401188473625,1.45,35
+tract-2,50,0.0,0.0,1.0,0.0,0.0,0.0,75000,0.08,325000,0.35,1985,1750,0.9507143064099162,1.75,35
+tract-3,50,2.0,0.0,0.0,0.0,1.0,0.0,55000,0.12,305000,0.35,1985,1550,0.7319939418114051,1.55,35
+tract-4,50,1.0,0.0,0.0,1.0,0.0,0.0,90000,0.05,340000,0.35,1985,1900,0.5986584841970366,1.9,35

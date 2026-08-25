@@ -1,0 +1,12 @@
+model,label,feature,coef,se,t,pval
+naive,ground-truth,income,-0.2476765548303612,,,
+naive,ground-truth,pov_rate,0.09865501182735714,,,
+naive,ground-truth,median_home_value,-0.24767655483036122,,,
+naive,ground-truth,renter_pct,0.0,-0.0,,
+controlled,ground-truth,exposure_proxy,-1.0128741248187811,,,
+controlled,ground-truth,building_density,-0.9141590499259759,,,
+controlled,ground-truth,median_building_age,8.881784197001252e-16,-0.0,-inf,
+controlled,ground-truth,income,-0.914159049925976,,,
+controlled,ground-truth,pov_rate,-2.679005447477991,,,
+controlled,ground-truth,median_home_value,-0.914159049925976,,,
+controlled,ground-truth,renter_pct,0.0,-0.0,,
