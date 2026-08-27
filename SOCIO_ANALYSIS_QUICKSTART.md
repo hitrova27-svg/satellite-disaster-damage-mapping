@@ -2,37 +2,7 @@
 
 ## ✓ Complete
 
-`socio_analysis.py` is fully implemented and tested on a synthetic fixture. Below is what to run for development and production use.
-
----
-
-## Test on Synthetic Fixture (Recommended First Step)
-
-The synthetic fixture validates the entire pipeline before running on real XBD data.
-
-```bash
-# Generate synthetic test data (~200 buildings, 4 census tracts, 2 events)
-python fixtures/synthetic_data.py
-
-# Run analysis on fixture (--min-buildings 10 because fixture is small)
-python scripts/socio_analysis.py \
-  --splits fixtures/output/splits_fixture.csv \
-  --xbd-dir fixtures/output \
-  --census-tracts fixtures/output/census_tracts_fixture.geojson \
-  --acs fixtures/output/acs_stub.csv \
-  --out socio_output_test \
-  --min-buildings 10
-```
-
-**Expected output:** `socio_output_test/` with:
-- `buildings.csv` — Building-level data after spatial join
-- `tracts.csv` — Tract-level aggregates (building counts, damage shares, ACS/exposure metrics)
-- `regression_results.csv` — Coefficients, standard errors, p-values (naive + controlled models)
-- `summary.txt` — Row counts at each pipeline stage
-- `coefficient_forest.png` — Forest plot comparing model coefficients
-- `damage_vs_income.png` — Scatter plot: damage vs. income, colored by exposure
-
-**Exit code:** 0 = success
+`socio_analysis.py` analyzes real XBD labels joined with TIGER census boundaries, ACS data, and real hazard-exposure layers.
 
 ---
 
@@ -175,16 +145,7 @@ Exit codes:
 ## Files Created
 
 - **scripts/socio_analysis.py** — Main analysis script (900+ lines)
-- **fixtures/synthetic_data.py** — Synthetic fixture generator (~240 lines)
 - **docs/socio_analysis_README.md** — Full documentation with examples
-
-Test outputs in **socio_output_test/**:
-- buildings.csv (200 buildings)
-- tracts.csv (4 tracts)
-- regression_results.csv (8 rows: 2 models × 2 levels × 4 socio features, well-defined)
-- summary.txt (pipeline statistics)
-- coefficient_forest.png (visual comparison)
-- damage_vs_income.png (scatter plot)
 
 ---
 

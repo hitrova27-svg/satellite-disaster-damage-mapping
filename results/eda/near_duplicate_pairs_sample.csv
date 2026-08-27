@@ -1,0 +1,16 @@
+scene_a,scene_b,split_a,split_b,hamming_distance
+joplin-tornado_00000013,moore-tornado_00000087,train,train,0
+joplin-tornado_00000013,socal-fire_00000251,train,test_ood,5
+joplin-tornado_00000013,socal-fire_00000319,train,test_ood,6
+joplin-tornado_00000013,tuscaloosa-tornado_00000084,train,train,5
+joplin-tornado_00000013,lower-puna-volcano_00000235,train,train,3
+moore-tornado_00000087,socal-fire_00000251,train,test_ood,5
+moore-tornado_00000087,socal-fire_00000319,train,test_ood,6
+moore-tornado_00000087,tuscaloosa-tornado_00000084,train,train,5
+moore-tornado_00000087,lower-puna-volcano_00000235,train,train,3
+tuscaloosa-tornado_00000094,tuscaloosa-tornado_00000084,train,train,6
+socal-fire_00000251,tuscaloosa-tornado_00000084,test_ood,train,6
+socal-fire_00000251,lower-puna-volcano_00000235,test_ood,train,6
+woolsey-fire_00000313,socal-fire_00000369,test_ood,test_ood,5
+socal-fire_00000319,tuscaloosa-tornado_00000084,test_ood,train,5
+tuscaloosa-tornado_00000084,lower-puna-volcano_00000235,train,train,6

@@ -1,0 +1,5 @@
+split,no-damage,minor-damage,major-damage,destroyed,un-classified
+test_id,65781,11040,8364,4655,1915
+test_ood,61992,704,726,11338,2553
+train,162462,21764,18976,14017,8287
+val,22798,3352,1838,1550,1256

@@ -1,0 +1,7 @@
+=== Socioeconomic Damage Analysis ===
+Events: ['hurricane-florence', 'hurricane-harvey', 'hurricane-michael', 'joplin-tornado', 'midwest-flooding', 'moore-tornado', 'santa-rosa-wildfire', 'socal-fire', 'tuscaloosa-tornado', 'woolsey-fire']
+Buildings analysed: 185045
+Census units analysed: 308
+Minimum buildings per unit: 20
+Naive R2: 0.0159
+Controlled R2: 0.0560

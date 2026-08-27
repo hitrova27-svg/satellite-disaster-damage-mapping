@@ -12,24 +12,6 @@ The script performs a regression analysis of building-level damage from XBD labe
 
 ## Quick Start
 
-### Synthetic Fixture (Test)
-
-```bash
-# Generate synthetic fixture (~200 buildings, 4 tracts, 2 events)
-python fixtures/synthetic_data.py
-
-# Run analysis on fixture (validates pipeline before real data)
-python scripts/socio_analysis.py \
-  --splits fixtures/output/splits_fixture.csv \
-  --xbd-dir fixtures/output \
-  --census-tracts fixtures/output/census_tracts_fixture.geojson \
-  --acs fixtures/output/acs_stub.csv \
-  --out socio_output_fixture \
-  --min-buildings 10
-```
-
-Expected output: `socio_output_fixture/` with buildings.csv, tracts.csv, regression_results.csv, summary.txt, plots.
-
 ### Real Data (XBD Dataset)
 
 #### 1. Prepare Input Files
@@ -62,10 +44,10 @@ census_tracts.geojson or census_tracts.shp
   Required columns: GEOID, geometry
 ```
 
-Download from [TIGER/Line](https://www2.census.gov/geo/tiger/GENZ2020/):
+Download from [TIGER/Line](https://www2.census.gov/geo/tiger/TIGER2020/BG/):
 ```bash
 # E.g., 2020 block groups for Texas
-wget https://www2.census.gov/geo/tiger/GENZ2020/shp/tl_2020_48_bg.zip
+wget https://www2.census.gov/geo/tiger/TIGER2020/BG/tl_2020_48_bg.zip
 unzip tl_2020_48_bg.zip
 ```
 
@@ -221,9 +203,9 @@ Scatter plot: damage (Y) vs. income (X), colored by exposure proxy.
 
 ---
 
-## Exposure Metrics (Production)
+## Exposure Metrics
 
-The script computes proxy exposure metrics in the synthetic fixture. For production data, substitute actual hazard layers:
+Provide real hazard exposure data for the analysis. The script derives building density and building age from the attached ACS data, while hazard-specific exposure must come from the corresponding hazard layers:
 
 ### Wildfire
 - **Distance to fire perimeter** — Download NIFC [Wildland Fire Perimeter History](https://data-nifc.opendata.arcgis.com/)
@@ -341,7 +323,7 @@ With small sample sizes (< ~50 tracts), design matrices may be rank-deficient. T
 
 **"Design matrix is singular"**
 - Small sample size (< 10 tracts) or multicollinear features
-- Expected with synthetic fixture; runs with pseudo-inverse fallback
+- Can occur with small or highly correlated real datasets; the script uses a pseudo-inverse fallback
 - For production: ensure >= 50 tracts or drop highly correlated predictors
 
 **Plots fail to save**
@@ -374,14 +356,13 @@ pip install geopandas pandas numpy scipy scikit-learn matplotlib seaborn
 
 ## Next Steps
 
-1. **Run on synthetic fixture** (above) to validate pipeline ✓
-2. **Prepare real XBD data**:
+1. **Prepare real XBD data**:
    - Download splits.csv with US events only
    - Ensure post_disaster.json labels are accessible
    - Obtain TIGER census boundaries for disaster region(s)
    - Fetch ACS data (Census API or pre-cached tables)
-3. **Run analysis** with appropriate `--min-buildings` (20–50 is typical)
-4. **Interpret results**:
+2. **Run analysis** with appropriate `--min-buildings` (20–50 is typical)
+3. **Interpret results**:
    - Compare naive vs. controlled coefficients → confounding bias
    - If `--preds`: compare ground-truth vs. prediction coefficients → model error bias
    - Forest plot: visual comparison of effect sizes
