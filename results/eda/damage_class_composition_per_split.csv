@@ -1,5 +1,5 @@
 split,no-damage,minor-damage,major-damage,destroyed,un-classified
-test_id,71.69,12.03,9.12,5.07,2.09
-test_ood,80.18,0.91,0.94,14.67,3.3
 train,72.04,9.65,8.41,6.22,3.67
 val,74.03,10.89,5.97,5.03,4.08
+test_id,71.69,12.03,9.12,5.07,2.09
+test_ood,80.18,0.91,0.94,14.67,3.3

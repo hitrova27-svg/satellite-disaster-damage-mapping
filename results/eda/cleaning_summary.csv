@@ -1,8 +1,10 @@
-check,count,action,percent_of_relevant_rows
-indexed files missing on disk,0,report; source data unchanged,
-scenes with incomplete file index,0,report; source data unchanged,
-scenes assigned to multiple splits,0,report; source data unchanged,
-scenes missing a pre/post image-label-mask role,0,report; source data unchanged,
-un-classified annotations,14011,exclude from four-class modeling,
-missing damage subtype,0,exclude from four-class modeling,
-invalid or missing geometries,0,exclude from spatial/crop analysis,
+check,count,action
+indexed files missing on disk,0,report only — source files unchanged
+scenes not complete on disk,0,report only — source files unchanged
+scenes assigned to multiple splits,0,report only — source files unchanged
+scenes missing an image/label role,0,report only — source files unchanged
+unreadable label files,0,report only — source files unchanged
+un-classified annotations,14011,report only — source files unchanged
+missing damage subtype,0,report only — source files unchanged
+invalid / unparseable geometries,0,report only — source files unchanged
+footprints with a side < 8px,16345,report only — source files unchanged

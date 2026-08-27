@@ -1,0 +1,5 @@
+subtype,train_polygons,share_percent,inverse_freq_weight
+no-damage,162462,74.79,0.334
+minor-damage,21764,10.02,2.495
+major-damage,18976,8.74,2.862
+destroyed,14017,6.45,3.874

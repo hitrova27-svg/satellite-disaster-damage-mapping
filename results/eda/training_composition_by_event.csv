@@ -1,0 +1,15 @@
+disaster,no-damage,minor-damage,major-damage,destroyed
+mexico-earthquake,99.6,0.4,0.0,0.0
+sunda-tsunami,97.8,0.0,0.8,1.4
+midwest-flooding,95.9,1.6,1.5,1.0
+guatemala-volcano,92.3,1.6,1.6,4.5
+moore-tornado,86.1,4.1,2.1,7.7
+palu-tsunami,81.3,0.0,1.9,16.8
+lower-puna-volcano,79.5,2.0,1.0,17.5
+tuscaloosa-tornado,76.1,13.5,3.2,7.2
+hurricane-florence,74.2,2.2,22.5,1.0
+nepal-flooding,74.1,12.6,12.0,1.2
+hurricane-michael,64.9,22.9,8.7,3.5
+joplin-tornado,56.1,14.8,6.9,22.2
+hurricane-harvey,50.8,11.5,36.0,1.7
+hurricane-matthew,20.2,47.4,15.9,16.4

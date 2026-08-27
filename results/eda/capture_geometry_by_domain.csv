@@ -1,0 +1,5 @@
+,gsd,gsd,off_nadir_angle,off_nadir_angle,sun_elevation,sun_elevation
+,mean,std,mean,std,mean,std
+domain,,,,,,
+non-fire,2.21,0.52,28.53,9.87,64.44,7.45
+wildfire (OOD),2.12,0.31,25.6,5.98,55.03,15.92

@@ -1,6 +1,6 @@
-damage_class,count
-no-damage,313033
-minor-damage,36860
-destroyed,31560
-major-damage,29904
-un-classified,14011
+subtype,polygons,percent
+no-damage,313033,73.59
+minor-damage,36860,8.67
+destroyed,31560,7.42
+major-damage,29904,7.03
+un-classified,14011,3.29

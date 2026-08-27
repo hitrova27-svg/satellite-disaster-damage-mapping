@@ -1,5 +1,5 @@
-split,unclassified,all_annotations,percent
-test_id,1915,91755,2.0870797231758487
-test_ood,2553,77313,3.3021613441465214
-train,8287,225506,3.674846788998962
-val,1256,30794,4.078716633110346
+split,unclassified,annotations,percent
+test_id,1915,91755,2.09
+test_ood,2553,77313,3.3
+train,8287,225506,3.67
+val,1256,30794,4.08

@@ -1,0 +1,5 @@
+subtype,non-fire (train domain),wildfire (OOD domain)
+no-damage,70.2,78.8
+minor-damage,9.9,1.2
+major-damage,7.2,1.1
+destroyed,6.5,14.8

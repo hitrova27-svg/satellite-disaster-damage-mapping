@@ -1,0 +1,5 @@
+split,unclassified_%,tiny_footprint_%,invalid_geometry
+train,3.675,4.108,0
+val,4.079,3.553,0
+test_id,2.087,3.137,0
+test_ood,3.302,4.023,0
