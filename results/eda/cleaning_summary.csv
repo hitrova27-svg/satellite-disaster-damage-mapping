@@ -1,10 +1,10 @@
 check,count,action
-indexed files missing on disk,0,report only — source files unchanged
-scenes not complete on disk,0,report only — source files unchanged
-scenes assigned to multiple splits,0,report only — source files unchanged
-scenes missing an image/label role,0,report only — source files unchanged
-unreadable label files,0,report only — source files unchanged
-un-classified annotations,14011,report only — source files unchanged
-missing damage subtype,0,report only — source files unchanged
-invalid / unparseable geometries,0,report only — source files unchanged
-footprints with a side < 8px,16345,report only — source files unchanged
+indexed files missing on disk,0,report only — none found; would block the affected scene in §5.5 if any appeared
+scenes not complete on disk,0,"excluded from patch extraction (§5.5, incomplete-scene rule)"
+scenes assigned to multiple splits,0,"report only — a split-index bug to fix upstream, not a per-row cleaning decision"
+scenes missing an image/label role,0,"excluded from patch extraction (§5.5, incomplete-scene rule)"
+unreadable label files,0,"contributes zero polygons already (§3), so implicitly excluded from patch extraction"
+un-classified annotations,14011,excluded from clean_buildings (§5.5)
+missing damage subtype,0,excluded from clean_buildings (§5.5)
+invalid / unparseable geometries,0,never added to buildings at scan time (§3) — nothing further to exclude
+footprints with a side < 8px,16345,excluded from clean_buildings (§5.5)

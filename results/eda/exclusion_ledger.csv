@@ -1,0 +1,6 @@
+rule,unit,scope,removed,kept,action,why
+un-classified / missing subtype,building polygons,425368,14011,411357,excluded from clean_buildings,"not a damage level — the annotator could not assess the building, or the JSON carried no subtype at all"
+degenerate geometry,building polygons,411357,0,411357,excluded from clean_buildings,zero/negative-area bbox cannot be cropped
+tiny footprint (< 8px side),building polygons,411357,14458,396899,excluded from clean_buildings,a side under 8px becomes an interpolation artefact once padded and resized to 64px
+incomplete scene,building polygons,396899,0,396899,excluded from clean_buildings,a usable sample needs pre image + post image + post label all present on disk
+blank crop,extracted patches,135262,0,135262,excluded from the manifest used for training,>98% of pixels above 250 or below 6 is a crop with no observation of the building
