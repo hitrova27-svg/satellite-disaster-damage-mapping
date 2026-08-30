@@ -1,47 +1,22 @@
-#!/usr/bin/env python3
 """
-prepare_splits.py — index the four xBD directories and assign train/val/test splits.
+Prepare train, validation and test splits for the xBD dataset.
 
-PURPOSE
--------
-xBD ships as four directories (hold, test, tier1, tier3) that reflect the
-structure of the original xView2 competition.
-This script does both steps in one pass:
+The dataset is stored in four folders: hold, test, tier1 and tier3.
+This script scans these folders, checks the files and creates a CSV
+with the split assigned to each scene.
 
-    1. MERGE  — scan all four directories into one unified index, checking
-                for filename collisions and incomplete scenes.
-    2. SPLIT  — assign every scene to train / val / test_id / test_ood.
+The main split setup is:
 
-The output is a CSV. By default NO image files are moved, copied or linked:
-each row records the file's original path, and downstream code reads paths from the CSV.
+    train     tier1 + tier3, without wildfire scenes
+    val       tier1 + tier3, without wildfire scenes
+    test_id   test + hold, without wildfire scenes
+    test_ood  wildfire scenes
 
-INPUT   xbd/{hold,test,tier1,tier3}/{images,labels,masks}/
-OUTPUT  data/splits.csv          one row per file: path, scene, disaster, split
-        data/splits_summary.csv  one row per scene (convenient for plots)
+Wildfire scenes are kept out of training because we want to test how
+well the model performs on a disaster type that it has not seen before.
 
-SPLIT DESIGN
-------------
-    train     tier1 + tier3, non-wildfire
-    val       tier1 + tier3, non-wildfire
-    test_id   official test + hold, non-wildfire   (in-distribution)
-    test_ood  every wildfire scene, any origin     (zero-shot)
-
-The research question is whether a damage-assessment model generalises to a
-disaster type it has never seen. `test_ood` measures that. But an OOD score
-in isolation is uninterpretable — a mediocre number could mean domain shift
-or simply a weak model — so `test_id` provides a same-model, same-training-run
-reference on data the model also never trained on. The ID -> OOD gap is the
-actual result; neither number means much alone.
-
-`test_id` is drawn from the official test/hold directories because those were
-never part of any training pool and, unlike `val`, were never used for tuning.
-That makes them the more honest basis for a headline number.
-
-Background on the source directories: in the xView2 competition `test` was
-the public leaderboard set and `hold` was withheld for final scoring. Both
-are labelled now and both are disjoint from tier1/tier3, so both function
-here as clean evaluation data. `tier1` was the original training pool and
-`tier3` was released later as additional training data.
+The script does not move the original files. It only saves their paths
+and split information to CSV files.
 """
 
 import argparse
@@ -55,16 +30,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 
-# ==========================================================================
-# CONSTANTS
-#
-# These were established by inspecting the data interactively, then frozen
-# here. Hard-coding them (rather than re-deriving them at runtime) means a
-# change in the data causes a loud failure instead of a silently different
-# split.
-# ==========================================================================
+# CONSTANTS FOR THE DATASET
+# These were established by inspecting the data interactively, then frozen here. 
+# Hard-coding them (rather than re-deriving them at runtime) means a change in the data causes a loud failure instead of a silently different split.
 
-# The four directories xBD ships as. `origin` in the output refers to these.
+
+# Main xBD folders
 ORIGINS = ("hold", "test", "tier1", "tier3")
 SUBDIRS = ("images", "labels", "masks")
 
@@ -79,15 +50,13 @@ FIRE_EVENTS = {
     "santa-rosa-wildfire",
 }
 
-# Used to detect fire-like names MISSING from FIRE_EVENTS above.
+# Extra check for possible wildfire event names
 FIRE_KEYWORDS = ("fire", "bushfire", "wildfire")
 
-# If the in-distribution reference set falls below this many scenes, the
-# ID -> OOD comparison rests on too little data to support a claim.
+# Warn if the ID test set is too small
 MIN_TEST_ID_SCENES = 300
 
-# Filename grammar: the disaster name, a zero-padded scene index, then a
-# "kind" suffix.
+# Filename grammar: the disaster name, a zero-padded scene index, then a "kind" suffix
 NAME_PAT = re.compile(
     r"^(?P<disaster>[a-z\-]+?)_"     # e.g. santa-rosa-wildfire
     r"(?P<idx>\d+)_"                 # e.g. 00000123
@@ -96,30 +65,22 @@ NAME_PAT = re.compile(
 
 
 def fail(msg: str) -> None:
-    """Abort with a nonzero exit code.
-
-    Used for conditions that would invalidate every downstream result.
-    Exiting rather than warning
-    """
+    """Print an error message and stop the script."""
     sys.exit(f"ERROR: {msg}")
 
 
-# ==========================================================================
-# STEP 1 — MERGE: scan the four directories into one index
-# ==========================================================================
+# STEP 1 — MERGE: Scan dataset folders
 
 def scan(src: Path) -> pd.DataFrame:
-    """Walk src/{origin}/{subdir}/ and build one row per file.
+    """Scan the dataset folders and collect information about every file.
 
     Args:
-        src: dataset root containing the four origin directories.
+    src: Root folder of the xBD dataset.
 
     Returns:
-        DataFrame with columns [origin, subdir, name, path].
-
-    Exits:
-        If no files are found at all (usually a wrong --src).
+        DataFrame containing file paths and basic metadata.
     """
+
     rows = []
     for origin in ORIGINS:
         for sub in SUBDIRS:
@@ -128,8 +89,7 @@ def scan(src: Path) -> pd.DataFrame:
                 print(f"  ! missing directory, skipping: {d}", file=sys.stderr)
                 continue
             for p in sorted(d.iterdir()):
-                # Skip dotfiles: macOS .DS_Store and similar would otherwise
-                # reach the filename parser and abort the run.
+                # Ignore hidden system files such as .DS_Store
                 if p.is_file() and not p.name.startswith("."):
                     rows.append({"origin": origin, "subdir": sub,
                                  "name": p.name, "path": str(p)})
@@ -147,21 +107,13 @@ def scan(src: Path) -> pd.DataFrame:
 
 
 def check_collisions(df: pd.DataFrame) -> None:
-    """Verify no filename is reused across origin directories.
-
-    xBD filenames encode disaster name and index, so they are expected to
-    be globally unique.
-
-    A collision matters here even without a physical merge: two different
-    files sharing a name would collapse into one scene_id, so a tier1 scene
-    and a tier3 scene would be treated as the same location and could pull
-    each other across the train/val boundary.
+    """Check that the same filename does not appear in different folders.
 
     Args:
-        df: scanned file index.
+        df: DataFrame returned by scan().
 
-    Exits:
-        If the same filename appears in more than one origin.
+    Raises:
+        Stops the script if duplicate filenames are found.
     """
     dupes = df.groupby(["subdir", "name"]).filter(lambda g: len(g) > 1)
     if len(dupes):
@@ -174,25 +126,17 @@ def check_collisions(df: pd.DataFrame) -> None:
     print("\nno filename collisions across origins")
 
 
-# ==========================================================================
-# STEP 2 — PARSE AND VALIDATE STRUCTURE
-# ==========================================================================
+# STEP 2 — Parse filenames and check dataset
+
 
 def parse_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Decompose each filename into disaster, scene_id and kind.
-
-    `scene_id` is the primary key.
+    """Extract disaster name, scene ID and file type from each filename.
 
     Args:
-        df: scanned file index, requires a `name` column.
+        df: DataFrame with file names.
 
     Returns:
-        The same frame with `disaster`, `scene_id` and `kind` columns added.
-
-    Exits:
-        If any filename fails to match NAME_PAT. An unparsed file would
-        receive no scene_id, hence no split, and would vanish silently
-        from the dataset.
+        DataFrame with additional parsed columns.
     """
     def one(name):
         m = NAME_PAT.match(Path(name).stem)
@@ -201,9 +145,7 @@ def parse_names(df: pd.DataFrame) -> pd.DataFrame:
         g = m.groupdict()
         return pd.Series({
             "disaster": g["disaster"],
-            # Note the origin is intentionally NOT part of the scene id: a
-            # scene must resolve identically regardless of which directory
-            # it came from, otherwise pre and post could split apart.
+            # Scene ID is based only on the filename.
             "scene_id": f"{g['disaster']}_{g['idx']}",
             "kind": g["kind"],
         })
@@ -219,20 +161,15 @@ def parse_names(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def check_structure(df: pd.DataFrame) -> None:
-    """Print the file-kind inventory and verify every scene is complete.
+    """Check that every scene has the expected file structure.
 
-    The masks directory holds roughly 1.5x as many files as images (e.g.
-    2,799 masks against 1,866 images in `hold`). This function derives the expected
-    file count per scene empirically (the mode) and flags any scene that
-    deviates from it.
+    The function counts how many file types belong to each scene and
+    reports scenes that are missing files or contain unexpected ones.
 
     Args:
-        df: parsed index with `subdir`, `scene_id` and `kind` columns.
-
-    Exits:
-        If a subdirectory is empty, or if any scene has an unexpected
-        number of files.
+        df: Parsed dataset index with scene IDs and file types.
     """
+
     inv = df.groupby("subdir").kind.value_counts().unstack(fill_value=0).T
     print("\nfile kinds per subdirectory")
     print(inv.to_string())
@@ -243,7 +180,7 @@ def check_structure(df: pd.DataFrame) -> None:
             fail(f"no files found for subdir '{sub}'")
 
         sizes = s.groupby("scene_id").kind.nunique()
-        expected = sizes.mode().iat[0]      # the overwhelmingly common case
+        expected = sizes.mode().iat[0]      # most common number of files per scene
         odd = sizes[sizes != expected]
         if len(odd):
             print(f"\n! {len(odd)} scene(s) in '{sub}' have an unusual number "
@@ -266,8 +203,7 @@ def check_fire_events(scenes: pd.DataFrame) -> None:
     """
     present = set(scenes.disaster.unique())
 
-    # Informational only — a listed event may legitimately be absent if
-    # the script is run on a partial download.
+    # Just print a warning if an expected event is missing
     missing = FIRE_EVENTS - present
     if missing:
         print(f"! listed fire events absent from data: {sorted(missing)}",
@@ -282,47 +218,35 @@ def check_fire_events(scenes: pd.DataFrame) -> None:
              f"{sorted(suspicious)}. Add them, or the holdout leaks.")
 
 
-# ==========================================================================
-# STEP 3 — ASSIGNMENT
-# ==========================================================================
+# STEP 3 — Create dataset splits
 
 def assign(scenes: pd.DataFrame, val_frac: float, seed: int,
            include_wildfire: bool) -> pd.DataFrame:
-    """Map every scene to exactly one split.
+    """Assign each scene to train, validation or test.
 
-    Only train and val are drawn randomly. The two test sets are defined
-    by the data itself — test_id is whatever the official evaluation
-    directories contribute, test_ood is every wildfire scene — so neither
-    depends on the seed.
+    Train and validation splits are created randomly.
+    The test sets are determined by the dataset structure:
+    official test/hold scenes become test_id and wildfire
+    scenes become test_ood.
 
     Args:
-        scenes: one row per scene, with `origin` and `is_fire` columns.
-        val_frac: validation fraction OF THE TRAINABLE POOL, not of the
-            whole dataset. With wildfire removed the pool is smaller than
-            the full dataset, so this figure is tuned to land val near
-            10% overall; always read the printed summary rather than
-            assuming the final percentage.
-        seed: passed to train_test_split for reproducibility.
-        include_wildfire: if True, use the standard xBD protocol instead
-            (wildfire stays in training, test_ood is empty). Published
-            baselines train on all disaster types, so this mode exists to
-            produce numbers that are actually comparable to them.
+        scenes: DataFrame with one row per scene.
+        val_frac: Fraction of training data used for validation.
+        seed: Random seed for reproducibility.
+    include_wildfire: If True, wildfire scenes stay in training.
 
     Returns:
-        DataFrame with columns [scene_id, split].
+        DataFrame containing scene IDs and assigned splits.
     """
     trainable = scenes[scenes.origin.isin(TRAIN_ORIGINS)]
     official = scenes[scenes.origin.isin(OFFICIAL_ORIGINS)]
 
     if include_wildfire:
-        # Standard protocol: nothing is held out by disaster type.
+        # Standard protocol: nothing is held out by disaster type
         pool, ood = trainable.copy(), scenes.iloc[0:0]
         test_id = official.copy()
     else:
-        # Held-out protocol: fire is removed from BOTH the training pool
-        # and the in-distribution test set, so test_id stays strictly
-        # in-distribution and test_ood collects every fire scene
-        # regardless of which directory it came from.
+        # Hold out all wildfire scenes for OOD evaluation
         pool = trainable[~trainable.is_fire].copy()
         test_id = official[~official.is_fire].copy()
         ood = scenes[scenes.is_fire].copy()
@@ -330,15 +254,8 @@ def assign(scenes: pd.DataFrame, val_frac: float, seed: int,
     if len(pool) < 10:
         fail(f"training pool has only {len(pool)} scenes")
 
-    # Stratify by disaster so train and val see a comparable event mix.
-    # Without this, a rare event could land entirely in val, making
-    # validation loss jump for reasons unrelated to model quality.
-    #
-    # train_test_split cannot stratify a class with only one member, and
-    # xBD does contain events represented by a single scene. Those are
-    # routed directly to train rather than bucketed together: a singleton
-    # cannot be split at all, and the extra example is worth more in
-    # training than in a validation set it would distort.
+    # Keep a similar disaster distribution in train and validation
+    # Events with only one scene cannot be stratified, so they are added directly to the training set
     counts = pool.disaster.value_counts()
     singleton = pool[pool.disaster.map(counts) < 2]
     splittable = pool[pool.disaster.map(counts) >= 2].copy()
@@ -347,10 +264,7 @@ def assign(scenes: pd.DataFrame, val_frac: float, seed: int,
         print(f"\n{len(singleton)} scene(s) from single-scene events sent "
               f"directly to train: {sorted(singleton.disaster.unique())}")
 
-    # StratifiedShuffleSplit additionally requires the validation set to be
-    # at least as large as the number of classes, otherwise some class gets
-    # zero validation examples. If val_frac is too small for the number of
-    # distinct events, stratification is dropped.
+    # Disable stratification if the validation set is too small
     n_classes = splittable.disaster.nunique()
     n_val = int(round(len(splittable) * val_frac))
     strat = splittable.disaster
@@ -360,9 +274,7 @@ def assign(scenes: pd.DataFrame, val_frac: float, seed: int,
               f"to restore a balanced event mix.", file=sys.stderr)
         strat = None
 
-    tr, va = train_test_split(
-        splittable, test_size=val_frac, random_state=seed, stratify=strat
-    )
+    tr, va = train_test_split(splittable, test_size=val_frac, random_state=seed, stratify=strat)
 
     return pd.concat([
         tr.assign(split="train"),
@@ -373,51 +285,39 @@ def assign(scenes: pd.DataFrame, val_frac: float, seed: int,
     ])[["scene_id", "split"]]
 
 
-# ==========================================================================
-# STEP 4 — VERIFICATION
-# ==========================================================================
+# STEP 4 — Verify the splits
 
 def verify(df: pd.DataFrame, scenes: pd.DataFrame, include_wildfire: bool) -> None:
-    """Assert the partition is sound before anything is written.
-
-    Each check corresponds to a failure mode that is invisible at training
-    time and only shows up as an implausibly good score later.
+    """Run basic checks on the generated splits.
 
     Args:
-        df: file-level frame, already merged with the split assignment.
-        scenes: scene-level frame carrying `is_fire`.
-        include_wildfire: relaxes the wildfire check under the standard
-            protocol, where fire in training is intended.
+        df: File-level DataFrame with assigned splits.
+        scenes: Scene-level DataFrame.
+        include_wildfire: Whether wildfire is included in training.
 
     Exits:
         On unassigned files, scene-level leakage, or wildfire found in
         train/val when it should have been held out.
     """
-    # 1. Every file must have a split. A missing assignment means a scene
-    #    fell through the origin filters and would be dropped from the
-    #    dataset without warning.
+    # 1. Every file must have a split
     n = df.split.isna().sum()
     if n:
         fail(f"{n} file(s) received no split")
 
-    # 2. The central leakage check: no scene may appear in two splits.
-    #    This is what guarantees pre and post images stayed together.
+    # 2. Make sure the same scene is not assigned to multiple splits
     straddle = df.groupby("scene_id").split.nunique()
     if (straddle > 1).any():
         fail(f"{(straddle > 1).sum()} scene(s) appear in more than one split")
 
     if not include_wildfire:
-        # 3. The experiment's core premise: zero wildfire exposure during
-        #    training. Checked on images only, since one row per file
-        #    would otherwise triple-count via the masks.
+        # 3. The experiment's core premise: wildfire scenes must not be in train/val
         img = df[df.subdir == "images"].merge(
             scenes[["scene_id", "is_fire"]], on="scene_id")
         leaked = img[img.split.isin(["train", "val"]) & img.is_fire]
         if len(leaked):
             fail(f"{leaked.scene_id.nunique()} wildfire scene(s) in train/val")
 
-        # 4. Not an error — the split is valid, but a small reference set
-        #    makes the ID -> OOD gap too noisy to draw conclusions from.
+        # 4. Warn if the ID test set is very small.
         n_id = df[df.split == "test_id"].scene_id.nunique()
         if n_id < MIN_TEST_ID_SCENES:
             print(f"\n! test_id has only {n_id} scenes (< {MIN_TEST_ID_SCENES}). "
@@ -427,9 +327,7 @@ def verify(df: pd.DataFrame, scenes: pd.DataFrame, include_wildfire: bool) -> No
     print("\nall integrity checks passed")
 
 
-# ==========================================================================
 # ENTRY POINT
-# ==========================================================================
 
 def main() -> None:
     ap = argparse.ArgumentParser(
@@ -456,19 +354,17 @@ def main() -> None:
     if not args.src.is_dir():
         fail(f"not found: {args.src}")
 
-    # ---- merge -----------------------------------------------------------
+    # ---- merge ----
     df = scan(args.src)
     check_collisions(df)
     df = parse_names(df)
     check_structure(df)
 
-    # Collapse to one row per scene. Restricting to images (rather than
-    # dropping duplicates over all subdirs) keeps this unambiguous: images
-    # have exactly one row per phase and no derived variants.
+    # Use image files to create one record for each scene
     scenes = (df[df.subdir == "images"][["scene_id", "disaster", "origin"]]
               .drop_duplicates("scene_id").reset_index(drop=True))
 
-    # Validate the fire list BEFORE using it to classify anything.
+    # Check that the wildfire event list is complete
     check_fire_events(scenes)
     scenes["is_fire"] = scenes.disaster.isin(FIRE_EVENTS)
 
@@ -477,13 +373,13 @@ def main() -> None:
     print("\nscenes by disaster and origin")
     print(pd.crosstab(scenes.disaster, scenes.origin, margins=True).to_string())
 
-    # ---- split -----------------------------------------------------------
+    # ---- split ----
     mapping = assign(scenes, args.val_frac, args.seed, args.include_wildfire)
     df = df.merge(mapping, on="scene_id", how="left")
 
     verify(df, scenes, args.include_wildfire)
 
-    # ---- reporting: these tables belong in the report's dataset section --
+    # ---- print split statistics ----
     summary = scenes.merge(mapping, on="scene_id")
     print("\nscenes per split")
     print(summary.split.value_counts().to_string())
@@ -491,10 +387,7 @@ def main() -> None:
     print(pd.crosstab(summary.disaster, summary.split).to_string())
 
     if not args.include_wildfire:
-        # Retaining `origin` allows test_id to be reported separately for
-        # `test` and `hold`. Since these were independent evaluation sets
-        # in the original competition, agreement between them is a free
-        # robustness check on a single trained model.
+        # Show the distribution of test_id scenes by original folder
         sub = summary[summary.split == "test_id"]
         print("\ntest_id by official origin (report these separately)")
         print(pd.crosstab(sub.disaster, sub.origin).to_string())
@@ -507,8 +400,8 @@ def main() -> None:
         print("\ndry run — nothing written")
         return
 
-    # ---- outputs ---------------------------------------------------------
-    # File-level CSV drives dataloaders; scene-level CSV is easier to plot.
+    # ---- outputs ----
+    # File-level CSV drives dataloaders; scene-level CSV is easier to plot
     args.out.mkdir(parents=True, exist_ok=True)
     out = df[["name", "path", "subdir", "scene_id", "disaster", "kind",
               "origin", "split"]].sort_values(["split", "name"])
@@ -517,7 +410,7 @@ def main() -> None:
     print(f"\nwrote {args.out / 'splits.csv'} ({len(out)} rows)")
     print(f"wrote {args.out / 'splits_summary.csv'} ({len(summary)} rows)")
 
-    # Echo the configuration so the run is self-documenting in a log.
+    # Print the settings used for this run
     print(f"\nseed={args.seed}  val_frac={args.val_frac}  "
           f"include_wildfire={args.include_wildfire}")
 

@@ -1,0 +1,10 @@
+Name,Disaster,Begin Date,End Date,CPI-Adjusted Cost,Unadjusted Cost,Deaths
+Southeast/Ohio Valley/Midwest Tornadoes (April 2011),Severe Storm,20110425,20110428,14310.7,10222.0,321
+Midwest/Southeast Tornadoes (May 2011),Severe Storm,20110522,20110527,12735.6,9096.8,177
+Midwest/Plains/East Tornadoes (May 2013),Severe Storm,20130518,20130522,3240.5,2400.3,27
+Hurricane Harvey (August 2017),Tropical Cyclone,20170825,20170831,160000.0,125000.0,89
+"Western Wildfires, California Firestorm (Summer-Fall 2017)",Wildfire,20170601,20171231,23226.5,18005.0,54
+Hurricane Florence (September 2018),Tropical Cyclone,20180913,20180916,30000.0,24000.0,53
+Hurricane Michael (October 2018),Tropical Cyclone,20181010,20181011,31218.8,24975.0,49
+"Western Wildfires, California Firestorm (Summer-Fall 2018)",Wildfire,20180601,20181231,30000.0,24000.0,106
+Arkansas River Flooding (June 2019),Flooding,20190520,20190614,3720.8,3025.0,5
