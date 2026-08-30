@@ -116,7 +116,44 @@ overwriting full-run artefacts.
 
 ---
 
-## 3. Results at a glance
+## 3. Repository structure
+
+```text
+.
+├── notebooks/                     Parts 1, 2 and 3
+│   ├── data_cleaning_eda.ipynb      Part 1: EDA, cleaning ledger, patch extraction
+│   ├── pretrained_resnet18_train.ipynb   Part 2, Model A: ImageNet ResNet-18
+│   ├── train_scratch_cnn.ipynb     Part 2, Model B: compact CNN from scratch
+│   ├── socio_analysis.ipynb        Part 3: damage vs. income regression
+│   └── damage_cost_analysis.ipynb  Part 3: damage in dollars, recovery, model audit
+├── scripts/                      data acquisition and split construction
+│   ├── download_xbd.py             resumable xBD downloader
+│   ├── download_acs.py             ACS 2017 block-group extract
+│   ├── download_tiger.py           TIGER/Line block-group boundaries
+│   ├── download_socio_extras.py    CAL FIRE DINS and FEMA IHP records
+│   ├── prepare_splits.py           scene-level split + integrity checks
+│   └── setup_windows.ps1           end-to-end Windows bootstrap
+├── data/                          committed inputs, no imagery
+│   ├── splits.csv, splits_summary.csv
+│   ├── acs.csv, hazard_exposure.csv
+│   └── calfire_dins.csv, fema_*.csv, nfip_claims.csv, noaa_event_costs.csv
+├── results/                       committed metrics, tables and plots
+│   ├── eda/                        Part 1 artefacts
+│   ├── pretrained_resnet18/        Model A metrics and curves
+│   ├── scratch_cnn/                Model B metrics, curves, confusion matrices
+│   ├── socio_analysis/             Part 3 baseline artefacts
+│   ├── damage_cost_analysis/       Part 3 cost/recovery/audit artefacts
+│   └── model_comparison.csv        the single two-model summary table
+├── figures/                       figures used by the LaTeX report
+├── docs/                          specification and long-form guides
+├── report.tex / report.pdf        the written report
+├── requirements.txt               Python dependencies
+└── LICENSE                        MIT
+```
+
+---
+
+## 4. Results at a glance
 
 | Model | Parameters | `val` | `test_id` (seen types) | `test_ood` (wildfire, unseen) |
 |---|---:|---|---|---|
@@ -140,7 +177,7 @@ Cells report *accuracy / macro-F1 / macro ROC-AUC*. Source: [`results/model_comp
 
 ---
 
-## 4. Limitations
+## 5. Limitations
 
 Full discussion in Section 9 of `report.pdf`. Briefly: `minor`/`major` rest on only 116/138
 out-of-domain examples; sun elevation is confounded with wildfire vs. non-fire acquisition, so part
@@ -150,7 +187,7 @@ well as pretraining, so this is not a pure ablation; and the socioeconomic analy
 
 ---
 
-## 5. License
+## 6. License
 
 Released under the MIT License; see [`LICENSE`](LICENSE). The xBD dataset is subject to its own
 terms and is not redistributed here. ACS, TIGER/Line, OpenFEMA, NOAA NCEI and CAL FIRE records are
