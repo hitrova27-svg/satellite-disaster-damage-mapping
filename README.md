@@ -34,11 +34,11 @@ in-distribution reference on the same trained model.
 The written report is `report.pdf`. Every figure, table and number in it is generated from a CSV or
 PNG artefact written by the notebooks and scripts below; nothing is hand-computed.
 
-**To run the project, start with Section 2.**
-
 ---
 
-## 2. Environment
+## 2. How to Run
+
+### 2.1 Environment
 
 Python 3.12 or newer. From the repository root:
 
@@ -60,9 +60,7 @@ CNNs slowly. For GPU training, reinstall from the PyTorch index matching your CU
 Parts 1 and 3 need neither `torch` nor a GPU. The committed results were produced on an NVIDIA
 RTX 4070 Laptop GPU (8 GB VRAM); reduce `BATCH_SIZE` in the configuration cell on a smaller card.
 
----
-
-## 3. Data
+### 2.2 Data
 
 **xBD imagery** (not committed — 11,034 scenes, 22,068 images, 425,368 building polygons): obtain
 from [xview2.org](https://xview2.org/) or the public Kaggle mirror `qianlanzz/xbd-dataset`, then:
@@ -85,23 +83,21 @@ xBD labels joined to census block groups, and CAL FIRE / NFIP / FEMA records use
 validate damage in dollars), so Part 3 runs without any download. To refresh the CAL FIRE and FEMA
 files from source: `.\.venv\Scripts\python.exe .\scripts\download_socio_extras.py`.
 
----
-
-## 4. Running the experiments
+### 2.3 Running the experiments
 
 Start JupyterLab from the repository root — `.\.venv\Scripts\jupyter-lab.exe` — then run the
 notebooks in order. Each resolves its own project root and writes only into its own output
-directory; both training notebooks consume the patches written in step 4.1, and the Part 3 cost
+directory; both training notebooks consume the patches written in step 2.3.1, and the Part 3 cost
 notebook consumes the CSVs written by the Part 3 baseline notebook.
 
-### 4.1 Part 1 — [`notebooks/data_cleaning_eda.ipynb`](notebooks/data_cleaning_eda.ipynb)
+**2.3.1 Part 1** — [`notebooks/data_cleaning_eda.ipynb`](notebooks/data_cleaning_eda.ipynb)
 
 EDA, the full label scan, and a cleaning ledger where every rule states its threshold, cost and
 per-split removal rate (nothing is removed silently). Extracts 135,262 patch pairs from 1,698
 scenes into memory-mapped arrays under `work-pretrained/patches/`, sampled under a compute budget
 and restricted to scenes with at least 5 usable buildings.
 
-### 4.2 Part 2 — the two change-detection CNNs
+**2.3.2 Part 2** — the two change-detection CNNs
 
 Both consume `work-pretrained/patches/`, use AdamW, weighted cross-entropy on inverse-frequency
 class weights, batch size 128, mixed precision, **seed 42**, and early stopping on validation
@@ -113,14 +109,14 @@ macro-F1 (not loss — under class imbalance, loss keeps rising after macro-F1 s
 Set `SMOKE_TEST = True` in the configuration cell to exercise the pipeline on a few batches without
 overwriting full-run artefacts.
 
-### 4.3 Part 3 — impact and recovery analysis
+**2.3.3 Part 3** — impact and recovery analysis
 
 - **Baseline** — [`notebooks/socio_analysis.ipynb`](notebooks/socio_analysis.ipynb): joins xBD damage to census block groups and ACS covariates (185,045 buildings, 308 block groups), fits the income/damage regression.
 - **Damage cost, recovery and audit** — [`notebooks/damage_cost_analysis.ipynb`](notebooks/damage_cost_analysis.ipynb): prices damage in dollars via HAZUS loss ratios, validates against NFIP/CAL FIRE/FEMA records, and audits the Part 2 models' predicted damage maps for relief-allocation bias.
 
 ---
 
-## 5. Results at a glance
+## 3. Results at a glance
 
 | Model | Parameters | `val` | `test_id` (seen types) | `test_ood` (wildfire, unseen) |
 |---|---:|---|---|---|
@@ -144,7 +140,7 @@ Cells report *accuracy / macro-F1 / macro ROC-AUC*. Source: [`results/model_comp
 
 ---
 
-## 6. Limitations
+## 4. Limitations
 
 Full discussion in Section 9 of `report.pdf`. Briefly: `minor`/`major` rest on only 116/138
 out-of-domain examples; sun elevation is confounded with wildfire vs. non-fire acquisition, so part
@@ -154,7 +150,7 @@ well as pretraining, so this is not a pure ablation; and the socioeconomic analy
 
 ---
 
-## 7. License
+## 5. License
 
 Released under the MIT License; see [`LICENSE`](LICENSE). The xBD dataset is subject to its own
 terms and is not redistributed here. ACS, TIGER/Line, OpenFEMA, NOAA NCEI and CAL FIRE records are
