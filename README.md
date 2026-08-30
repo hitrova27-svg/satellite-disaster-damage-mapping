@@ -31,8 +31,8 @@ same structure, one before and one after the event, a shared-weight siamese enco
 a zero-shot out-of-domain test set; the official xView2 `test`/`hold` directories give an
 in-distribution reference on the same trained model.
 
-The written report is `report.pdf`. Every figure, table and number in it is generated from a CSV or
-PNG artefact written by the notebooks and scripts below; nothing is hand-computed.
+The written report is `report.pdf`. Its figures, tables and numbers come from the CSV and PNG
+artefacts written by the notebooks and scripts below.
 
 ---
 
@@ -70,25 +70,36 @@ from [xview2.org](https://xview2.org/) or the public Kaggle mirror `qianlanzz/xb
 tar.exe -xf .\xbd-dataset.zip
 ```
 
-giving `xbd/{hold,test,tier1,tier3}/{images,labels,masks}/` alongside the already-committed
-`data/splits.csv`.
+giving `xbd/{hold,test,tier1,tier3}/{images,labels,masks}/` alongside `data/splits.csv`.
+
+**Git LFS is required.** `data/splits.csv`, `data/acs.csv`, `data/census_tracts.geojson`,
+`results/socio_analysis/buildings.csv` and the other paths listed in `.gitattributes` are stored via
+LFS; after cloning, run `git lfs install && git lfs pull` or they will be pointer stubs.
 
 **The split** is scene-level, produced once by `scripts/prepare_splits.py` (not inside a notebook),
 so every model trains on an identical, seeded partition. Five wildfire events are held out entirely
 (`test_ood`); the official xView2 `test`+`hold` directories give the in-distribution reference
 (`test_id`).
 
-**Socioeconomic and federal records** for Part 3 are already committed (ACS income/housing data,
-xBD labels joined to census block groups, and CAL FIRE / NFIP / FEMA records used to price and
-validate damage in dollars), so Part 3 runs without any download. To refresh the CAL FIRE and FEMA
-files from source: `.\.venv\Scripts\python.exe .\scripts\download_socio_extras.py`.
+**Socioeconomic and federal records** for Part 3 are committed (ACS income/housing data and the
+CAL FIRE / NFIP / FEMA records used to price and validate damage in dollars). Two inputs are not:
+the baseline notebook additionally needs the xBD label files and `data/census_tracts.geojson`, so
+run `.\.venv\Scripts\python.exe .\scripts\download_tiger.py` first. To refresh the CAL FIRE and
+FEMA files from source: `.\.venv\Scripts\python.exe .\scripts\download_socio_extras.py`.
 
 ### 2.3 Running the experiments
 
 Start JupyterLab from the repository root — `.\.venv\Scripts\jupyter-lab.exe` — then run the
 notebooks in order. Each resolves its own project root and writes only into its own output
-directory; both training notebooks consume the patches written in step 2.3.1, and the Part 3 cost
-notebook consumes the CSVs written by the Part 3 baseline notebook.
+directory; both training notebooks consume the patches written in step 2.3.1.
+
+Two manual steps join the stages, because the notebooks do not agree on paths. The training
+notebooks write to `work-pretrained/` and `work-scratch/` and the cost notebook to
+`outputs/damage_cost/`, while the committed copies live under `results/`. And the cost notebook
+reads `data/buildings.csv`, `data/tracts.csv` and `data/predictions.csv`: the first two must be
+copied there from `results/socio_analysis/`, and `predictions.csv` (the two Part 2 models'
+building-level output on their held-out splits, joined to census geography) is not written by any
+notebook and must be produced separately.
 
 **2.3.1 Part 1** — [`notebooks/data_cleaning_eda.ipynb`](notebooks/data_cleaning_eda.ipynb)
 
@@ -101,17 +112,20 @@ and restricted to scenes with at least 5 usable buildings.
 
 Both consume `work-pretrained/patches/`, use AdamW, weighted cross-entropy on inverse-frequency
 class weights, batch size 128, mixed precision, **seed 42**, and early stopping on validation
-macro-F1 (not loss — under class imbalance, loss keeps rising after macro-F1 stops improving).
+macro-F1, not loss — under class imbalance the two decouple: Model A's validation loss bottoms out
+at epoch 11 and rises while macro-F1 keeps improving to epoch 35, and Model B's loss is still
+falling at its final epoch while macro-F1 peaked at epoch 8.
 
 - **Model A** — [`notebooks/pretrained_resnet18_train.ipynb`](notebooks/pretrained_resnet18_train.ipynb): ImageNet ResNet-18, linear-probe then fine-tune.
 - **Model B** — [`notebooks/train_scratch_cnn.ipynb`](notebooks/train_scratch_cnn.ipynb): compact CNN trained from scratch, same schedule budget.
 
-Set `SMOKE_TEST = True` in the configuration cell to exercise the pipeline on a few batches without
-overwriting full-run artefacts.
+To exercise the pipeline without a full run, point `OUTPUT_DIR_OVERRIDE` in the configuration cell
+at a scratch directory and lower the epoch budget (`EPOCHS_HEAD`/`EPOCHS_FT` in Model A, `EPOCHS` in
+Model B), so full-run artefacts are not overwritten.
 
 **2.3.3 Part 3** — impact and recovery analysis
 
-- **Baseline** — [`notebooks/socio_analysis.ipynb`](notebooks/socio_analysis.ipynb): joins xBD damage to census block groups and ACS covariates (185,045 buildings, 308 block groups), fits the income/damage regression.
+- **Baseline** — [`notebooks/socio_analysis.ipynb`](notebooks/socio_analysis.ipynb): joins 185,045 xBD buildings to census block groups and ACS covariates, then fits the income/damage regression on the 291 block groups (108,491 buildings) left after the 20-building threshold and the census-sentinel drop.
 - **Damage cost, recovery and audit** — [`notebooks/damage_cost_analysis.ipynb`](notebooks/damage_cost_analysis.ipynb): prices damage in dollars via HAZUS loss ratios, validates against NFIP/CAL FIRE/FEMA records, and audits the Part 2 models' predicted damage maps for relief-allocation bias.
 
 ---
@@ -164,14 +178,15 @@ Cells report *accuracy / macro-F1 / macro ROC-AUC*. Source: [`results/model_comp
 
 - **Transfer fails as calibration, not as representation.** Model A loses 33.9% of its macro-F1 out
   of domain, but the loss is confined to the two intermediate damage classes (19.1% of training
-  patches, only 1.7% of wildfire patches). `destroyed` scores *higher* out of domain than in it
-  (F1 0.758 vs. 0.687), and ROC-AUC holds at 0.814.
+  patches, only 1.7% of wildfire patches). `destroyed` still scores well out of domain (F1 0.758 vs.
+  0.687 — partly its 3× higher prevalence there; recall 0.670 vs. 0.749), and ROC-AUC holds at 0.814.
 - **Pretraining wins on every split and every metric**, most where it matters: +0.143 accuracy and
   +0.052 macro-F1 on wildfire.
 - **Damage is not distributed along an income gradient once the disaster event is controlled for**
-  (β = +0.225, p = 0.0009 naive → β = +0.057, p = 0.44 with event fixed effects), **but recovery
-  capacity is**: priced in dollars and validated against NFIP/CAL FIRE/FEMA records, 61% of the
-  poorest quartile's flood loss is covered by neither insurance nor federal aid, against 34% in the
+  (β = +0.211, p = 0.002 naive; β = +0.225, p = 0.0009 with built-environment controls →
+  β = +0.057, p = 0.44 with event fixed effects), **but recovery
+  capacity is**: priced in dollars and validated against NFIP/CAL FIRE/FEMA records, 60% of the
+  poorest quartile's flood loss is covered by neither insurance nor federal aid, against 33% in the
   richest. Auditing the models' own predictions shows an automated relief rule would misdirect
   $30–78M of every $1B on seen disaster types and $112–200M on wildfire.
 
